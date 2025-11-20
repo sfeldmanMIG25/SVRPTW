@@ -1,0 +1,12 @@
+{
+    "instance_file": "N100_V025_I059.json",
+    "policy_type": "ADP_Master_Policy",
+    "metrics": {
+        "mean_total_cost": 4060.2543378702335,
+        "std_total_cost": 275.18526242785043,
+        "mean_missed_customers": 6.26,
+        "mean_hard_late_penalties": 0.08,
+        "mean_service_time": 943.5642143128346,
+        "fleet_utilization": 0.07863035119273622
+    }
+}

@@ -10,6 +10,12 @@ DISTANCE_UNIT = "miles"
 # Time is the primary unit for simulation
 TIME_UNIT = "minutes"
 
+# Operating Day Times (FIX)
+# 8:00 AM (8 * 60 = 480 min from midnight)
+DEPOT_E_TIME = 480 
+# 4:00 PM (16 * 60 = 960 min from midnight)
+DEPOT_L_TIME = 960 
+
 # Cost Rates
 # Wage Cost: $7.25/hr * 2 crew members = $14.50/hr -> $0.241666.../min
 WAGE_COST_PER_MINUTE = 14.50 / 60.0

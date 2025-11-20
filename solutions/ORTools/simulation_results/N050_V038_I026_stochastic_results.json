@@ -1,0 +1,19 @@
+{
+    "instance_file": "N050_V038_I026.json",
+    "N": 50,
+    "V": 38,
+    "Q": 28,
+    "strategy_solve_time_seconds": 30.020281076431274,
+    "metrics": {
+        "policy_type": "Deterministic_ORTools_Evaluated",
+        "N_simulations": 100,
+        "deterministic_cost_benchmark": 879.3333333333334,
+        "mean_stochastic_cost": 3415.6071697572797,
+        "std_stochastic_cost": 12.260536935378639,
+        "mean_hard_late_penalties": 0.0,
+        "std_hard_late_penalties": 0.0,
+        "mean_service_efficiency": 0.1821642106055076,
+        "mean_transit_min": 2757.7310362644616,
+        "mean_wait_min": 5162.463041015037
+    }
+}

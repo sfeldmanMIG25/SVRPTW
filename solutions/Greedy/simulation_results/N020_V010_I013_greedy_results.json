@@ -1,0 +1,160 @@
+{
+    "instance_file": "N020_V010_I013.json",
+    "N": 20,
+    "V": 10,
+    "Q": 44,
+    "routes": [
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 18
+            },
+            {
+                "node_id": 14
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 5
+            },
+            {
+                "node_id": 11
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 20
+            },
+            {
+                "node_id": 16
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 12
+            },
+            {
+                "node_id": 17
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 4
+            },
+            {
+                "node_id": 3
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 19
+            },
+            {
+                "node_id": 10
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 7
+            },
+            {
+                "node_id": 6
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 15
+            },
+            {
+                "node_id": 13
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 1
+            },
+            {
+                "node_id": 9
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 8
+            },
+            {
+                "node_id": 2
+            },
+            {
+                "node_id": 0
+            }
+        ]
+    ],
+    "metrics": {
+        "policy_type": "Greedy_NearestNeighbor_Evaluated",
+        "N_simulations": 100,
+        "mean_stochastic_cost": 5403.354482410356,
+        "std_stochastic_cost": 9.384013665604302,
+        "mean_hard_late_penalties": 4.0,
+        "std_hard_late_penalties": 0.0,
+        "mean_service_efficiency": 0.13747243688507152,
+        "mean_transit_min": 1173.8688774302732,
+        "mean_wait_min": 2049.2693316483505,
+        "mean_missed_customers": 0
+    }
+}

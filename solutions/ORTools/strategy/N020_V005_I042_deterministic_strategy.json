@@ -1,0 +1,143 @@
+{
+    "routes": [
+        [
+            {
+                "node_id": 0,
+                "arrival_time_det": 480
+            },
+            {
+                "node_id": 19,
+                "arrival_time_det": 607
+            },
+            {
+                "node_id": 16,
+                "arrival_time_det": 644
+            },
+            {
+                "node_id": 17,
+                "arrival_time_det": 770
+            },
+            {
+                "node_id": 12,
+                "arrival_time_det": 797
+            },
+            {
+                "node_id": 0,
+                "arrival_time_det": 835
+            }
+        ],
+        [
+            {
+                "node_id": 0,
+                "arrival_time_det": 0
+            },
+            {
+                "node_id": 13,
+                "arrival_time_det": 539
+            },
+            {
+                "node_id": 20,
+                "arrival_time_det": 566
+            },
+            {
+                "node_id": 9,
+                "arrival_time_det": 661
+            },
+            {
+                "node_id": 14,
+                "arrival_time_det": 849
+            },
+            {
+                "node_id": 0,
+                "arrival_time_det": 898
+            }
+        ],
+        [
+            {
+                "node_id": 0,
+                "arrival_time_det": 0
+            },
+            {
+                "node_id": 11,
+                "arrival_time_det": 534
+            },
+            {
+                "node_id": 4,
+                "arrival_time_det": 674
+            },
+            {
+                "node_id": 10,
+                "arrival_time_det": 713
+            },
+            {
+                "node_id": 0,
+                "arrival_time_det": 750
+            }
+        ],
+        [
+            {
+                "node_id": 0,
+                "arrival_time_det": 0
+            },
+            {
+                "node_id": 8,
+                "arrival_time_det": 497
+            },
+            {
+                "node_id": 5,
+                "arrival_time_det": 561
+            },
+            {
+                "node_id": 18,
+                "arrival_time_det": 749
+            },
+            {
+                "node_id": 3,
+                "arrival_time_det": 795
+            },
+            {
+                "node_id": 0,
+                "arrival_time_det": 829
+            }
+        ],
+        [
+            {
+                "node_id": 0,
+                "arrival_time_det": 0
+            },
+            {
+                "node_id": 15,
+                "arrival_time_det": 482
+            },
+            {
+                "node_id": 7,
+                "arrival_time_det": 538
+            },
+            {
+                "node_id": 2,
+                "arrival_time_det": 765
+            },
+            {
+                "node_id": 6,
+                "arrival_time_det": 852
+            },
+            {
+                "node_id": 1,
+                "arrival_time_det": 868
+            },
+            {
+                "node_id": 0,
+                "arrival_time_det": 931
+            }
+        ]
+    ],
+    "total_distance": 498,
+    "total_cost": 297.3333333333333,
+    "status": "Optimal/Feasible",
+    "instance_file": "N020_V005_I042.json",
+    "N": 20,
+    "V": 5,
+    "Q": 79,
+    "solve_time_seconds": 30.029047966003418,
+    "policy_type": "Deterministic_ORTools_Strategy"
+}

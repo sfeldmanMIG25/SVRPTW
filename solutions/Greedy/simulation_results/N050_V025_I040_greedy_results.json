@@ -1,0 +1,370 @@
+{
+    "instance_file": "N050_V025_I040.json",
+    "N": 50,
+    "V": 25,
+    "Q": 41,
+    "routes": [
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 24
+            },
+            {
+                "node_id": 44
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 3
+            },
+            {
+                "node_id": 5
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 34
+            },
+            {
+                "node_id": 39
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 25
+            },
+            {
+                "node_id": 6
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 13
+            },
+            {
+                "node_id": 10
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 36
+            },
+            {
+                "node_id": 50
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 46
+            },
+            {
+                "node_id": 40
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 19
+            },
+            {
+                "node_id": 1
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 47
+            },
+            {
+                "node_id": 21
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 43
+            },
+            {
+                "node_id": 27
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 29
+            },
+            {
+                "node_id": 33
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 16
+            },
+            {
+                "node_id": 30
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 41
+            },
+            {
+                "node_id": 42
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 14
+            },
+            {
+                "node_id": 35
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 26
+            },
+            {
+                "node_id": 38
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 31
+            },
+            {
+                "node_id": 7
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 23
+            },
+            {
+                "node_id": 4
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 49
+            },
+            {
+                "node_id": 18
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 15
+            },
+            {
+                "node_id": 17
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 32
+            },
+            {
+                "node_id": 2
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 48
+            },
+            {
+                "node_id": 45
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 9
+            },
+            {
+                "node_id": 20
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 28
+            },
+            {
+                "node_id": 22
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 37
+            },
+            {
+                "node_id": 11
+            },
+            {
+                "node_id": 0
+            }
+        ],
+        [
+            {
+                "node_id": 0
+            },
+            {
+                "node_id": 12
+            },
+            {
+                "node_id": 8
+            },
+            {
+                "node_id": 0
+            }
+        ]
+    ],
+    "metrics": {
+        "policy_type": "Greedy_NearestNeighbor_Evaluated",
+        "N_simulations": 100,
+        "mean_stochastic_cost": 12701.485761550028,
+        "std_stochastic_cost": 510.40963708873153,
+        "mean_hard_late_penalties": 9.39,
+        "std_hard_late_penalties": 0.5103969538555756,
+        "mean_service_efficiency": 0.14938109060815064,
+        "mean_transit_min": 2731.672193761453,
+        "mean_wait_min": 4905.822943853044,
+        "mean_missed_customers": 0
+    }
+}
