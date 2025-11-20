@@ -1,0 +1,9 @@
+{
+    "instance_file": "N100_V050_I076.json",
+    "policy_type": "Genetic_Evolution",
+    "metrics": {
+        "mean_total_cost": 6268.665094791702,
+        "mean_missed_customers": 4.11,
+        "fleet_utilization": 0.03998150562564033
+    }
+}

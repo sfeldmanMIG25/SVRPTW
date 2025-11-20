@@ -1,0 +1,9 @@
+{
+    "instance_file": "N050_V038_I012.json",
+    "policy_type": "RL_DQN",
+    "metrics": {
+        "mean_total_cost": 3843.0089875449617,
+        "mean_missed_customers": 1.0,
+        "fleet_utilization": 0.026943585999263896
+    }
+}
