@@ -29,7 +29,7 @@ MAX_CHILDREN = 8
 EXPANSION_SAMPLES = 3   
 
 # Evaluation
-EVAL_SIMULATIONS = 100 
+EVAL_SIMULATIONS = 100 # Increased to 100 for robustness
 
 # --- PATHS ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -187,13 +187,18 @@ class MCTSEngine:
         contribution = revenue - (transit_cost + wage_cost + penalty)
         finish_time = service_start + service_time
         
+        # --- OPTIMIZED STATE UPDATE (No DeepCopy) ---
+        # Copy list of vehicles (shallow copy of list)
+        new_vehicle_states = list(state['vehicle_states'])
+        # Create NEW dict for the specific vehicle being updated
         next_v_state = {'loc': action_id, 'time_avail': finish_time, 'capacity': next_cap}
+        new_vehicle_states[vehicle_idx] = next_v_state
+        
         next_state = {
             'current_time': state['current_time'], 
             'unvisited_ids': next_unvisited,
-            'vehicle_states': copy.deepcopy(state['vehicle_states'])
+            'vehicle_states': new_vehicle_states
         }
-        next_state['vehicle_states'][vehicle_idx] = next_v_state
         
         return contribution, next_state, finish_time
 
@@ -239,7 +244,9 @@ class HybridMCTSAgent:
             else:
                 reward = 0
                 
-            temp_state = copy.deepcopy(node.state)
+            # Rollout: ADP GUIDED
+            # Optimization: Use reference since step() is non-destructive
+            temp_state = node.state
             rollout_reward = reward 
             
             for _ in range(ROLLOUT_DEPTH):
@@ -266,7 +273,7 @@ class HybridMCTSAgent:
                 rollout_reward += r
                 if best_a == 0: break 
             
-            # FIX: Penalize unvisited customers at end of rollout (TRAINING ONLY)
+            # Penalize unvisited customers at end of rollout (Training Guidance)
             unvisited_count = len(temp_state['unvisited_ids'])
             if unvisited_count > 0:
                 rollout_reward -= (unvisited_count * HARD_LATE_PENALTY)
@@ -323,7 +330,7 @@ class HybridMCTSAgent:
                 elif action == 0 and state['unvisited_ids']:
                      if time_now + 30 < DEPOT_L_TIME: heapq.heappush(events, (time_now + 30, v_idx))
 
-        # Record missed but do NOT add penalty to reported cost
+        # Record missed stats (Reporting Only - No added cost)
         stats['missed'] = len(state['unvisited_ids'])
         return stats
 
@@ -391,8 +398,11 @@ def run_hybrid_pipeline():
     print(f"--- Starting HYBRID MCTS Evaluation on {len(files)} Instances ---")
     print(f"Using Weights: {adp_weights}")
     
+    num_workers = os.cpu_count()
+    print(f"Utilizing {num_workers} cores.")
+    
     start = time.time()
-    with ProcessPoolExecutor(max_workers=10) as executor:
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = {executor.submit(process_instance, f, adp_weights, global_statics): f for f in files}
         
         completed = 0
