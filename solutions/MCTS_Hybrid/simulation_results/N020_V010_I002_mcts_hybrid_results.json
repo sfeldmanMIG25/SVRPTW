@@ -1,0 +1,9 @@
+{
+    "instance_file": "N020_V010_I002.json",
+    "policy_type": "MCTS_Hybrid_ADP",
+    "metrics": {
+        "mean_total_cost": 1428.6166062942243,
+        "mean_missed_customers": 4.01,
+        "fleet_utilization": 0.49039036064983504
+    }
+}
