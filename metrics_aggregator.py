@@ -6,8 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 # --- CONFIGURATION ---
-# Constants for utilization calculation
-DEPOT_OPEN_DURATION = 480 # 8:00 AM to 4:00 PM (Minutes)
+DEPOT_OPEN_DURATION = 480 
+HARD_LATE_PENALTY = 1000.0 # Define penalty here for standardization
 
 def find_results_files(base_dir):
     """
@@ -62,9 +62,7 @@ def find_results_files(base_dir):
         paths['MCTS_Hybrid'] = glob.glob(os.path.join(mcts_hyb_path, '*.json'))
 
     # 8. RL Paths
-    rl_path = os.path.join(base_dir, 'solutions', 'RL', 'simulation_results') # Assuming RL saves here eventually
-    # Note: The current rl_trainer.py prints to console, but ideally saves JSONs here.
-    # If RL results are not saved as JSONs yet, this list will be empty.
+    rl_path = os.path.join(base_dir, 'solutions', 'RL', 'simulation_results') 
     if os.path.exists(rl_path):
         paths['RL'] = glob.glob(os.path.join(rl_path, '*.json'))
     
@@ -83,21 +81,24 @@ def parse_results(method_name, file_list):
             
             # --- Standardize Fields ---
             fname = os.path.basename(filepath)
-            # Clean filename to get instance ID
-            instance_id = fname.split('_')[0] + '_' + fname.split('_')[1] + '_' + fname.split('_')[2]
-            # Or more robust replacement:
             instance_id = fname.replace('.json', '').replace('_stochastic_results', '')\
                                .replace('_greedy_results', '').replace('_adp_results', '')\
                                .replace('_mcts_results', '').replace('_mcts_improved_results', '')\
                                .replace('_mcts_hybrid_results', '').replace('_rl_results', '')
             
-            # Cost
-            cost = metrics.get('mean_stochastic_cost', metrics.get('mean_total_cost', 0.0))
+            # Raw Operational Cost (Fuel + Wages + Late Fines)
+            raw_cost = metrics.get('mean_stochastic_cost', metrics.get('mean_total_cost', 0.0))
             
             # Failures
             missed = metrics.get('mean_missed_customers', 0.0)
             late = metrics.get('mean_hard_late_penalties', 0.0)
             total_failures = missed + late
+            
+            # --- FIX: STANDARDIZED TRUE COST CALCULATION ---
+            # True Cost = Operational Cost + (Missed Customers * $1000)
+            # We assume 'raw_cost' does NOT include the missed penalty (based on your last instruction).
+            # We add it here to make the comparison fair across all methods.
+            true_total_cost = raw_cost + (missed * HARD_LATE_PENALTY)
             
             # Utilization
             utilization = 0.0
@@ -115,7 +116,7 @@ def parse_results(method_name, file_list):
             records.append({
                 'Instance': instance_id,
                 'Method': method_name,
-                'Avg_Cost': cost,
+                'Avg_Cost': true_total_cost, # Use the corrected cost
                 'Avg_Failures': total_failures,
                 'Utilization_Pct': utilization * 100.0, 
                 'N_Customers': data.get('N', 0),
@@ -129,7 +130,6 @@ def parse_results(method_name, file_list):
 
 def generate_report():
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    
     print(f"Scanning for results in: {script_dir}")
     file_paths = find_results_files(script_dir)
     
@@ -155,7 +155,7 @@ def generate_report():
     }).rename(columns={'Instance': 'Count'}).reset_index()
     
     print("\n" + "="*60)
-    print("AGGREGATE PERFORMANCE SUMMARY")
+    print("AGGREGATE PERFORMANCE SUMMARY (Adjusted for Missed Penalties)")
     print("="*60)
     print(summary.to_string(index=False, float_format=lambda x: "{:.2f}".format(x)))
     print("="*60)
@@ -188,7 +188,7 @@ def generate_charts(df, output_dir):
     # Chart 1: Average Cost
     avg_cost = df.groupby('Method')['Avg_Cost'].mean()
     axes[0].bar(avg_cost.index, avg_cost.values, color=[colors.get(m, 'gray') for m in avg_cost.index])
-    axes[0].set_title('Average Operational Cost ($)')
+    axes[0].set_title('True Avg Cost ($)\n(Ops + Missed Penalty)')
     axes[0].set_ylabel('Cost')
     plt.setp(axes[0].get_xticklabels(), rotation=45, ha='right')
     

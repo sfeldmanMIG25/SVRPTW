@@ -8,6 +8,7 @@ import math
 import time
 import random
 import pickle
+from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # Import existing environment tools
@@ -29,12 +30,18 @@ MAX_CHILDREN = 8
 EXPANSION_SAMPLES = 3   
 
 # Evaluation
-EVAL_SIMULATIONS = 100 # Increased to 100 for robustness
+EVAL_SIMULATIONS = 100 
 
 # --- PATHS ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DATA_DIR = os.path.join(SCRIPT_DIR, 'instances', 'data')
-GENETIC_WEIGHTS_FILE = os.path.join(SCRIPT_DIR, 'solutions', 'Genetic', 'genetic_policy_weights.pkl')
+
+# CHECK MULTIPLE LOCATIONS FOR ADP WEIGHTS
+# 1. Standard location
+ADP_WEIGHTS_FILE_1 = os.path.join(SCRIPT_DIR, 'solutions', 'ADP', 'strategy', 'adp_master_weights.pkl')
+# 2. Location from previous script iteration (nested in instances)
+ADP_WEIGHTS_FILE_2 = os.path.join(SCRIPT_DIR, 'instances', 'solutions', 'ADP', 'strategy', 'adp_master_weights.pkl')
+
 HYBRID_SOLUTIONS_DIR = os.path.join(SCRIPT_DIR, 'solutions', 'MCTS_Hybrid')
 HYBRID_RESULTS_DIR = os.path.join(HYBRID_SOLUTIONS_DIR, 'simulation_results')
 
@@ -187,10 +194,8 @@ class MCTSEngine:
         contribution = revenue - (transit_cost + wage_cost + penalty)
         finish_time = service_start + service_time
         
-        # --- OPTIMIZED STATE UPDATE (No DeepCopy) ---
-        # Copy list of vehicles (shallow copy of list)
+        # Optimized State Update (Shallow Copy)
         new_vehicle_states = list(state['vehicle_states'])
-        # Create NEW dict for the specific vehicle being updated
         next_v_state = {'loc': action_id, 'time_avail': finish_time, 'capacity': next_cap}
         new_vehicle_states[vehicle_idx] = next_v_state
         
@@ -245,7 +250,6 @@ class HybridMCTSAgent:
                 reward = 0
                 
             # Rollout: ADP GUIDED
-            # Optimization: Use reference since step() is non-destructive
             temp_state = node.state
             rollout_reward = reward 
             
@@ -273,7 +277,7 @@ class HybridMCTSAgent:
                 rollout_reward += r
                 if best_a == 0: break 
             
-            # Penalize unvisited customers at end of rollout (Training Guidance)
+            # Penalize unvisited (Training Guidance Only)
             unvisited_count = len(temp_state['unvisited_ids'])
             if unvisited_count > 0:
                 rollout_reward -= (unvisited_count * HARD_LATE_PENALTY)
@@ -330,7 +334,7 @@ class HybridMCTSAgent:
                 elif action == 0 and state['unvisited_ids']:
                      if time_now + 30 < DEPOT_L_TIME: heapq.heappush(events, (time_now + 30, v_idx))
 
-        # Record missed stats (Reporting Only - No added cost)
+        # Record missed (Reporting Only)
         stats['missed'] = len(state['unvisited_ids'])
         return stats
 
@@ -386,14 +390,29 @@ def run_hybrid_pipeline():
     files = sorted([os.path.join(BASE_DATA_DIR, f) for f in os.listdir(BASE_DATA_DIR) if f.endswith('.json')])
     if not files: return
 
-    if not os.path.exists(GENETIC_WEIGHTS_FILE):
-        print("Error: Genetic weights not found. Please run genetic_optimizer.py first.")
+    # LOAD WEIGHTS LOGIC
+    adp_weights = None
+    global_statics = None
+    
+    if os.path.exists(ADP_WEIGHTS_FILE_1):
+        print(f"Loading ADP weights from: {ADP_WEIGHTS_FILE_1}")
+        weights_file = ADP_WEIGHTS_FILE_1
+    elif os.path.exists(ADP_WEIGHTS_FILE_2):
+        print(f"Loading ADP weights from: {ADP_WEIGHTS_FILE_2}")
+        weights_file = ADP_WEIGHTS_FILE_2
+    else:
+        print(f"Error: ADP weights not found. Checked:\n1. {ADP_WEIGHTS_FILE_1}\n2. {ADP_WEIGHTS_FILE_2}")
+        print("Please run adp_solver.py first.")
         return
     
-    with open(GENETIC_WEIGHTS_FILE, 'rb') as f:
-        saved_data = pickle.load(f)
-        adp_weights = saved_data['weights']
-        global_statics = saved_data['global_statics']
+    try:
+        with open(weights_file, 'rb') as f:
+            saved_data = pickle.load(f)
+            adp_weights = saved_data['weights']
+            global_statics = saved_data['global_statics']
+    except Exception as e:
+        print(f"Error loading weights pickle: {e}")
+        return
     
     print(f"--- Starting HYBRID MCTS Evaluation on {len(files)} Instances ---")
     print(f"Using Weights: {adp_weights}")
@@ -405,10 +424,13 @@ def run_hybrid_pipeline():
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
         futures = {executor.submit(process_instance, f, adp_weights, global_statics): f for f in files}
         
-        completed = 0
-        for future in as_completed(futures):
-            completed += 1
-            print(f"[{completed}/{len(files)}] {future.result()}")
+        # TQDM Progress Bar
+        with tqdm(total=len(files), desc="Evaluating Instances", unit="inst") as pbar:
+            for future in as_completed(futures):
+                result = future.result()
+                # Optional: Print result to console if needed, or just let tqdm handle bar
+                print(f"[{pbar.n+1}/{len(files)}] {result}")
+                pbar.update(1)
             
     print(f"Completed in {time.time() - start:.1f}s")
 
