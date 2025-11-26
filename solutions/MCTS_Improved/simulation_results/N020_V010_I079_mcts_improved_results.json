@@ -1,9 +1,0 @@
-{
-    "instance_file": "N020_V010_I079.json",
-    "policy_type": "MCTS_Online_Improved",
-    "metrics": {
-        "mean_total_cost": 1504.7867788205485,
-        "mean_missed_customers": 5.19,
-        "fleet_utilization": 0.44784206022479206
-    }
-}
