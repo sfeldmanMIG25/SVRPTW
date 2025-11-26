@@ -1,41 +1,34 @@
 import numpy as np
 
 # --- 1. PHYSICAL/GEOGRAPHIC CONSTANTS ---
-# Standard Euclidean 2D coordinates will be used.
 COORDINATE_BOUNDS = (0, 100)
 DEPOT_COORDINATE = (50, 50)
 DISTANCE_UNIT = "miles"
 
 # --- 2. TIME & COST PARAMETERS (All in MINUTES) ---
-# Time is the primary unit for simulation
 TIME_UNIT = "minutes"
 
-# Operating Day Times (FIX)
-# 8:00 AM (8 * 60 = 480 min from midnight)
+# Operating Day Times (8:00 AM to 4:00 PM)
 DEPOT_E_TIME = 480 
-# 4:00 PM (16 * 60 = 960 min from midnight)
 DEPOT_L_TIME = 960 
 
 # Cost Rates
-# Wage Cost: $7.25/hr * 2 crew members = $14.50/hr -> $0.241666.../min
 WAGE_COST_PER_MINUTE = 14.50 / 60.0
-# Transit Cost: $5/gallon / 10 mpg = $0.50/mile
 TRANSIT_COST_PER_MILE = 0.50
 
 # Penalties
-# Early arrival penalty is implicit: the cost of crew sitting idle
 EARLY_WAITING_PENALTY_PER_MINUTE = WAGE_COST_PER_MINUTE
-# Hard late penalty: incurred if arrival > L_i (latest time window) and service is denied.
 HARD_LATE_PENALTY = 1000.0
 
 # --- 3. STOCHASTIC DISTRIBUTION PARAMETERS ---
-# Travel Time Distribution: Log-Normal(log(mu), sigma^2)
-# mu_ij is the actual Euclidean distance
-TRAVEL_TIME_LN_SIGMA = 0.2
+# EXTREME VARIABILITY SETTINGS
 
-# Service Time Distribution: Normal(mu, sigma^2)
-# The mean service time will be calculated dynamically based on the time window,
-# but we need a baseline sigma for the distribution.
-SERVICE_TIME_BASE_MEAN = 10.0 # minutes
-# Set sigma such that a 3-sigma event is rare relative to a typical 60 min window duration
-SERVICE_TIME_SIGMA = 3.0
+# Travel Time: Log-Normal(log(mu), sigma^2)
+# 0.6 is extremely volatile. A 20-min trip often becomes 45-60 mins.
+TRAVEL_TIME_LN_SIGMA = 0.6
+
+# Service Time: Normal(mu, sigma^2)
+# Mean is ~10 min, but Sigma is 8 min. 
+# Service times will frequently range from 0 to 30+ minutes.
+SERVICE_TIME_BASE_MEAN = 10.0 
+SERVICE_TIME_SIGMA = 8.0
