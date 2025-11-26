@@ -7,6 +7,7 @@ import json
 import random
 import time
 from collections import deque
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from vrp_gym_env import VRPEnv
 
 # --- CONFIG ---
@@ -19,20 +20,22 @@ TARGET_UPDATE = 10
 MEMORY_SIZE = 50000
 LR = 1e-4
 NUM_EPISODES = 2000
-EVAL_FREQ = 100
+EVAL_FREQ = 250
+EVAL_SIMS = 30 # Number of stochastic days per instance
 
 # Paths
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(SCRIPT_DIR, 'instances', 'data')
 SAVE_DIR = os.path.join(SCRIPT_DIR, 'solutions', 'RL')
+RESULTS_DIR = os.path.join(SAVE_DIR, 'simulation_results')
 os.makedirs(SAVE_DIR, exist_ok=True)
+os.makedirs(RESULTS_DIR, exist_ok=True)
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"RL Trainer using device: {device}")
 
 # --- Q-NETWORK ---
 class VRP_DQN(nn.Module):
-    def __init__(self, global_input_dim=2, node_input_dim=5, hidden_dim=128):
+    def __init__(self, global_input_dim=2, node_input_dim=6, hidden_dim=128):
         super(VRP_DQN, self).__init__()
         
         self.global_net = nn.Sequential(
@@ -54,6 +57,8 @@ class VRP_DQN(nn.Module):
         )
         
     def forward(self, global_feats, node_feats):
+        # global: (Batch, 2)
+        # nodes: (Batch, N, 6)
         batch_size = global_feats.size(0)
         num_nodes = node_feats.size(1)
         
@@ -66,19 +71,73 @@ class VRP_DQN(nn.Module):
         q_values = self.scorer(combined)
         return q_values.squeeze(2)
 
-# --- REPLAY MEMORY ---
-class ReplayMemory:
-    def __init__(self, capacity):
-        self.memory = deque(maxlen=capacity)
-
-    def push(self, global_s, node_s, mask, action, reward, global_next, node_next, mask_next, done):
-        self.memory.append((global_s, node_s, mask, action, reward, global_next, node_next, mask_next, done))
-
-    def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)
-
-    def __len__(self):
-        return len(self.memory)
+# --- WORKER FOR PARALLEL EVALUATION ---
+def evaluate_worker(instance_idx, model_state, data_dir):
+    """
+    Runs 30 episodes for a single instance using a CPU-loaded model.
+    """
+    try:
+        # Re-init env and model locally to avoid pickling issues
+        env = VRPEnv(data_dir)
+        local_net = VRP_DQN().to('cpu')
+        local_net.load_state_dict(model_state)
+        local_net.eval()
+        
+        logs = []
+        
+        for day in range(EVAL_SIMS):
+            obs, _ = env.reset(instance_idx=instance_idx)
+            
+            done = False
+            while not done:
+                # Prepare Inputs
+                raw_nodes = obs['nodes']
+                raw_mask = obs['mask']
+                
+                # Pad
+                limit = 200
+                p_nodes = np.zeros((limit, 6), dtype=np.float32)
+                p_mask = np.zeros(limit, dtype=bool)
+                p_nodes[:raw_nodes.shape[0], :] = raw_nodes
+                p_mask[:raw_mask.shape[0]] = raw_mask
+                
+                # Inference
+                g_tens = torch.tensor(obs['global'], dtype=torch.float).unsqueeze(0)
+                n_tens = torch.tensor(p_nodes, dtype=torch.float).unsqueeze(0)
+                m_tens = torch.tensor(p_mask, dtype=torch.bool).unsqueeze(0)
+                
+                with torch.no_grad():
+                    q_vals = local_net(g_tens, n_tens)
+                    q_vals[~m_tens] = -float('inf')
+                    action = q_vals.max(1)[1].item()
+                    
+                obs, _, terminated, truncated, _ = env.step(action)
+                done = terminated or truncated
+                
+            # Capture Log
+            s = env.sim_state
+            logs.append({
+                'day_index': day,
+                'total_cost': s['total_cost'],
+                'hard_lates': s['hard_lates'],
+                'missed_customers': len(s['unvisited_ids']),
+                'vehicle_traces': s['vehicle_traces']
+            })
+            
+        # Instance Meta
+        inst_file = os.path.basename(env.instance_files[instance_idx])
+        num_c = env.all_instances[instance_idx]['num_customers']
+        num_v = env.all_instances[instance_idx]['num_vehicles']
+        
+        return {
+            'instance_file': inst_file,
+            'N': num_c,
+            'V': num_v,
+            'daily_simulation_logs': logs
+        }
+        
+    except Exception as e:
+        return {'error': str(e)}
 
 # --- TRAINER ---
 def train():
@@ -90,204 +149,157 @@ def train():
     target_net.eval()
     
     optimizer = optim.Adam(policy_net.parameters(), lr=LR)
-    memory = ReplayMemory(MEMORY_SIZE)
+    
+    # Simple deque memory (can be optimized, but fine for now)
+    memory = deque(maxlen=MEMORY_SIZE)
+    
+    print(f"--- Starting DQN Training ({NUM_EPISODES} episodes) ---")
     
     steps_done = 0
     
-    print("--- Starting Training ---")
-    
     for i_episode in range(NUM_EPISODES):
-        # Gym reset returns (obs, info)
         obs, _ = env.reset()
         
-        state_g = torch.tensor(obs['global'], dtype=torch.float, device=device).unsqueeze(0)
-        
-        raw_nodes = obs['nodes']
-        raw_mask = obs['mask']
-        
-        def pad_to_fixed(nodes, mask, limit=200):
-            p_nodes = np.zeros((limit, 5), dtype=np.float32)
-            p_mask = np.zeros(limit, dtype=bool)
-            p_nodes[:nodes.shape[0], :] = nodes
-            p_mask[:mask.shape[0]] = mask
-            return p_nodes, p_mask
+        # Preprocessing function for padding
+        def pad_state(obs):
+            rn = obs['nodes']
+            rm = obs['mask']
+            p_n = np.zeros((200, 6), dtype=np.float32)
+            p_m = np.zeros(200, dtype=bool)
+            p_n[:rn.shape[0], :] = rn
+            p_m[:rm.shape[0]] = rm
+            return obs['global'], p_n, p_m
 
-        p_nodes, p_mask = pad_to_fixed(raw_nodes, raw_mask)
-        state_n = torch.tensor(p_nodes, dtype=torch.float, device=device).unsqueeze(0)
-        state_m = torch.tensor(p_mask, dtype=torch.bool, device=device).unsqueeze(0)
-
+        cur_g, cur_n, cur_m = pad_state(obs)
+        
         total_reward = 0
         
         while True:
-            # SELECT ACTION
-            eps = EPS_END + (EPS_START - EPS_END) * \
-                  np.exp(-1. * steps_done / EPS_DECAY)
+            # Epsilon Greedy
+            eps = EPS_END + (EPS_START - EPS_END) * np.exp(-1. * steps_done / EPS_DECAY)
             steps_done += 1
             
-            valid_indices = torch.nonzero(state_m[0]).flatten()
+            valid_indices = np.nonzero(cur_m)[0]
             
             if random.random() < eps:
                 if len(valid_indices) == 0: action = 0
-                else: action = valid_indices[random.randint(0, len(valid_indices)-1)].item()
+                else: action = np.random.choice(valid_indices)
             else:
+                t_g = torch.tensor(cur_g, dtype=torch.float, device=device).unsqueeze(0)
+                t_n = torch.tensor(cur_n, dtype=torch.float, device=device).unsqueeze(0)
+                t_m = torch.tensor(cur_m, dtype=torch.bool, device=device).unsqueeze(0)
                 with torch.no_grad():
-                    q_vals = policy_net(state_g, state_n)
-                    q_vals[~state_m] = -float('inf')
-                    action = q_vals.max(1)[1].item()
+                    q = policy_net(t_g, t_n)
+                    q[~t_m] = -float('inf')
+                    action = q.max(1)[1].item()
             
-            # STEP (Gymnasium style)
-            next_obs, reward, terminated, truncated, _ = env.step(action)
-            done = terminated or truncated
-            
+            next_obs, reward, term, trunc, _ = env.step(action)
+            done = term or trunc
             total_reward += reward
             
-            n_raw_nodes = next_obs['nodes']
-            n_raw_mask = next_obs['mask']
-            pn_nodes, pn_mask = pad_to_fixed(n_raw_nodes, n_raw_mask)
+            nex_g, nex_n, nex_m = pad_state(next_obs)
             
-            memory.push(
-                obs['global'], p_nodes, p_mask, 
-                action, reward, 
-                next_obs['global'], pn_nodes, pn_mask, 
-                done
-            )
+            # Store
+            memory.append((cur_g, cur_n, cur_m, action, reward, nex_g, nex_n, nex_m, done))
             
-            obs = next_obs
-            p_nodes, p_mask = pn_nodes, pn_mask
-            state_g = torch.tensor(obs['global'], dtype=torch.float, device=device).unsqueeze(0)
-            state_n = torch.tensor(p_nodes, dtype=torch.float, device=device).unsqueeze(0)
-            state_m = torch.tensor(p_mask, dtype=torch.bool, device=device).unsqueeze(0)
+            cur_g, cur_n, cur_m = nex_g, nex_n, nex_m
             
-            # OPTIMIZE
+            # Optimize
             if len(memory) > BATCH_SIZE:
-                transitions = memory.sample(BATCH_SIZE)
-                batch = list(zip(*transitions))
+                batch = random.sample(memory, BATCH_SIZE)
                 
-                b_glo = torch.tensor(np.array(batch[0]), dtype=torch.float, device=device)
-                b_nod = torch.tensor(np.array(batch[1]), dtype=torch.float, device=device)
-                b_msk = torch.tensor(np.array(batch[2]), dtype=torch.bool, device=device)
-                b_act = torch.tensor(batch[3], dtype=torch.long, device=device).unsqueeze(1)
-                b_rew = torch.tensor(batch[4], dtype=torch.float, device=device).unsqueeze(1)
-                b_glo_next = torch.tensor(np.array(batch[5]), dtype=torch.float, device=device)
-                b_nod_next = torch.tensor(np.array(batch[6]), dtype=torch.float, device=device)
-                b_msk_next = torch.tensor(np.array(batch[7]), dtype=torch.bool, device=device)
-                b_done = torch.tensor(batch[8], dtype=torch.float, device=device).unsqueeze(1)
+                # Unpack
+                b_g, b_n, b_m, b_a, b_r, b_ng, b_nn, b_nm, b_d = zip(*batch)
                 
-                curr_q = policy_net(b_glo, b_nod).gather(1, b_act)
+                t_g = torch.tensor(np.array(b_g), dtype=torch.float, device=device)
+                t_n = torch.tensor(np.array(b_n), dtype=torch.float, device=device)
+                t_a = torch.tensor(b_a, dtype=torch.long, device=device).unsqueeze(1)
+                t_r = torch.tensor(b_r, dtype=torch.float, device=device).unsqueeze(1)
+                t_ng = torch.tensor(np.array(b_ng), dtype=torch.float, device=device)
+                t_nn = torch.tensor(np.array(b_nn), dtype=torch.float, device=device)
+                t_nm = torch.tensor(np.array(b_nm), dtype=torch.bool, device=device)
+                t_d = torch.tensor(b_d, dtype=torch.float, device=device).unsqueeze(1)
+                
+                curr_q = policy_net(t_g, t_n).gather(1, t_a)
                 
                 with torch.no_grad():
-                    next_q_vals = target_net(b_glo_next, b_nod_next)
-                    # Don't choose invalid actions for next state max
-                    next_q_vals[~b_msk_next] = -float('inf')
-                    max_next_q = next_q_vals.max(1)[0].unsqueeze(1)
-                    expected_q = b_rew + (GAMMA * max_next_q * (1 - b_done))
+                    next_q = target_net(t_ng, t_nn)
+                    next_q[~t_nm] = -float('inf')
+                    max_next = next_q.max(1)[0].unsqueeze(1)
+                    target = t_r + (GAMMA * max_next * (1 - t_d))
                 
-                loss = nn.MSELoss()(curr_q, expected_q)
-                
+                loss = nn.MSELoss()(curr_q, target)
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
                 
-            if done:
-                break
-                
+            if done: break
+        
         if i_episode % TARGET_UPDATE == 0:
             target_net.load_state_dict(policy_net.state_dict())
             
-        if i_episode % EVAL_FREQ == 0:
-            print(f"Episode {i_episode} | Reward: {total_reward:.1f} | Epsilon: {eps:.2f}")
+        if (i_episode+1) % 100 == 0:
+            print(f"  Episode {i_episode+1} | Last Reward: {total_reward:.1f} | Eps: {eps:.2f}")
+
+        if (i_episode+1) % EVAL_FREQ == 0:
+            # Save Checkpoint
+            torch.save(policy_net.state_dict(), os.path.join(SAVE_DIR, 'vrp_dqn.pth'))
+            # Run Parallel Evaluation
+            run_parallel_evaluation(policy_net)
             
+    # Final Save
     torch.save(policy_net.state_dict(), os.path.join(SAVE_DIR, 'vrp_dqn.pth'))
-    print("Training Complete. Model saved.")
+    print("Training Complete.")
     
-    evaluate(policy_net, env)
+    # Final Eval
+    run_parallel_evaluation(policy_net)
 
-def evaluate(model, env):
-    print("\n--- Evaluating RL Policy on All Instances ---")
-    model.eval()
+def run_parallel_evaluation(policy_net):
+    print("\n--- Running Parallel Evaluation ---")
     
-    # FIX: Create results directory for JSONs
-    results_dir = os.path.join(SAVE_DIR, 'simulation_results')
-    os.makedirs(results_dir, exist_ok=True)
-
-    summary = {'cost': [], 'missed': [], 'util': []}
+    # Get model state for CPU workers
+    cpu_state = {k: v.cpu() for k, v in policy_net.state_dict().items()}
     
-    for i in range(len(env.all_instances)):
-        instance_costs = []
-        instance_missed = []
-        instance_util = []
-        
-        for _ in range(10):
-            obs, _ = env.reset(instance_idx=i)
-            
-            def pad_to_fixed(nodes, mask, limit=200):
-                p_nodes = np.zeros((limit, 5), dtype=np.float32)
-                p_mask = np.zeros(limit, dtype=bool)
-                p_nodes[:nodes.shape[0], :] = nodes
-                p_mask[:mask.shape[0]] = mask
-                return p_nodes, p_mask
-
-            p_nodes, p_mask = pad_to_fixed(obs['nodes'], obs['mask'])
-            
-            state_g = torch.tensor(obs['global'], dtype=torch.float, device=device).unsqueeze(0)
-            state_n = torch.tensor(p_nodes, dtype=torch.float, device=device).unsqueeze(0)
-            state_m = torch.tensor(p_mask, dtype=torch.bool, device=device).unsqueeze(0)
-            
-            while True:
-                with torch.no_grad():
-                    q_vals = model(state_g, state_n)
-                    q_vals[~state_m] = -float('inf')
-                    action = q_vals.max(1)[1].item()
-                
-                obs, reward, terminated, truncated, _ = env.step(action)
-                done = terminated or truncated
-                
-                if done:
-                    break
-                
-                p_nodes, p_mask = pad_to_fixed(obs['nodes'], obs['mask'])
-                state_g = torch.tensor(obs['global'], dtype=torch.float, device=device).unsqueeze(0)
-                state_n = torch.tensor(p_nodes, dtype=torch.float, device=device).unsqueeze(0)
-                state_m = torch.tensor(p_mask, dtype=torch.bool, device=device).unsqueeze(0)
-            
-            s = env.sim_state
-            cap = len(s['vehicle_queue']) * env.time_horizon
-            
-            instance_costs.append(s['total_cost'])
-            instance_missed.append(s['failures'])
-            instance_util.append(s['service_time'] / max(1, cap))
-
-        # Calculate means for this instance
-        mean_cost = np.mean(instance_costs)
-        mean_missed = np.mean(instance_missed)
-        mean_util = np.mean(instance_util)
-        
-        # Add to global summary
-        summary['cost'].append(mean_cost)
-        summary['missed'].append(mean_missed)
-        summary['util'].append(mean_util)
-        
-        # FIX: Save JSON for Aggregator
-        instance_filename = os.path.basename(env.instance_files[i])
-        base_name = instance_filename.replace('.json', '')
-        
-        result_data = {
-            'instance_file': instance_filename,
-            'policy_type': 'RL_DQN',
-            'metrics': {
-                'mean_total_cost': mean_cost,
-                'mean_missed_customers': mean_missed,
-                'fleet_utilization': mean_util
-            }
+    # Get file list
+    instance_files = sorted([f for f in os.listdir(DATA_DIR) if f.endswith('.json')])
+    if not instance_files: return
+    
+    total_costs = []
+    
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
+        futures = {
+            executor.submit(evaluate_worker, i, cpu_state, DATA_DIR): i 
+            for i in range(len(instance_files))
         }
         
-        with open(os.path.join(results_dir, f"{base_name}_rl_results.json"), 'w') as f:
-            json.dump(result_data, f, indent=4)
-
-    print(f"Avg Cost: ${np.mean(summary['cost']):.2f}")
-    print(f"Avg Missed: {np.mean(summary['missed']):.2f}")
-    print(f"Avg Util: {np.mean(summary['util'])*100:.1f}%")
-    print(f"Results saved to: {results_dir}")
+        for future in as_completed(futures):
+            res = future.result()
+            if 'error' in res:
+                print(f"Eval Error: {res['error']}")
+                continue
+            
+            # Save JSON
+            fname = res['instance_file'].replace('.json', '')
+            out_path = os.path.join(RESULTS_DIR, f"{fname}_rl_results.json")
+            
+            # Construct Final Output
+            final_json = {
+                'instance_file': res['instance_file'],
+                'policy_type': 'RL_DQN',
+                'N': res['N'],
+                'V': res['V'],
+                'daily_simulation_logs': res['daily_simulation_logs']
+            }
+            
+            with open(out_path, 'w') as f:
+                json.dump(final_json, f, indent=4)
+            
+            # Track avg cost
+            avg_c = np.mean([l['total_cost'] for l in res['daily_simulation_logs']])
+            total_costs.append(avg_c)
+            
+    print(f"Evaluation Complete. Avg Cost across all instances: ${np.mean(total_costs):,.0f}")
+    print(f"Results saved to: {RESULTS_DIR}\n")
 
 if __name__ == "__main__":
     train()

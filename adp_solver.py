@@ -8,9 +8,7 @@ import random
 import pickle
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from collections import namedtuple
 
-# Import existing environment tools
 from config import (
     WAGE_COST_PER_MINUTE, TRANSIT_COST_PER_MILE,
     DEPOT_E_TIME, DEPOT_L_TIME, HARD_LATE_PENALTY,
@@ -24,24 +22,35 @@ from data_generator import euclidean_distance
 REVENUE_PER_UNIT_DEMAND = 5.0
 GAMMA = 0.9
 EPSILON = 0.2
+RISK_AVERSION_FACTOR = 2.0 
 
 # Training Settings
 TRAIN_EPISODES = 3000 
-EVAL_SIMULATIONS_PER_INSTANCE = 50 # Number of stochastic runs per instance during evaluation
+TRAIN_BATCH_SIZE = 20 # Number of episodes to run in parallel per batch
+EVAL_SIMULATIONS_PER_INSTANCE = 30
 
-# Adaptive Learning Rate Constants
+# Adaptive Learning Rate
 LEARNING_RATE_CONSTANT = 200.0 
 
 # --- PATH CONFIGURATION ---
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 BASE_DATA_DIR = os.path.join(SCRIPT_DIR, 'instances', 'data')
-ADP_STRATEGY_DIR = os.path.join(SCRIPT_DIR, 'instances', 'solutions', 'ADP', 'strategy')
-ADP_RESULTS_DIR = os.path.join(SCRIPT_DIR, 'instances', 'solutions', 'ADP', 'simulation_results')
+ADP_STRATEGY_DIR = os.path.join(SCRIPT_DIR, 'solutions', 'ADP', 'strategy')
+ADP_RESULTS_DIR = os.path.join(SCRIPT_DIR, 'solutions', 'ADP', 'simulation_results')
 
-# Ensure directories exist
 os.makedirs(ADP_STRATEGY_DIR, exist_ok=True)
 os.makedirs(ADP_RESULTS_DIR, exist_ok=True)
 
+# --- FEATURE NAMES MAPPING ---
+FEATURE_NAMES = [
+    "Bias (Intercept)",
+    "Norm Demand (Unvisited)",
+    "Norm Distance (Closest)",
+    "Norm Time Left",
+    "Norm Time Window Tightness",
+    "Norm Fleet Availability",
+    "Norm Fleet Capacity"
+]
 
 # --- COMPONENT 1: VALUE FUNCTION APPROXIMATION (VFA) ---
 class LinearValueFunction:
@@ -52,11 +61,8 @@ class LinearValueFunction:
         return np.dot(self.weights, features)
     
     def update(self, prev_features, target_value, iteration):
-        """SGD update with Adaptive Learning Rate."""
         current_est = self.estimate(prev_features)
         error = target_value - current_est
-        
-        # Search-then-Converge
         alpha = LEARNING_RATE_CONSTANT / (LEARNING_RATE_CONSTANT + iteration)
         self.weights += alpha * error * prev_features
 
@@ -69,7 +75,6 @@ def extract_features(state, vehicle_idx, instance, global_statics):
     if current_loc_id == 0:
         curr_coord = (instance['depot']['x'], instance['depot']['y'])
     else:
-        # Assumes 'cust_map' is injected into instance
         cust = instance['cust_map'][current_loc_id]
         curr_coord = (cust['x'], cust['y'])
 
@@ -132,7 +137,6 @@ class ADP_Engine:
 
     def set_instance(self, instance_data):
         self.current_instance = instance_data
-        # Inject optimized lookups
         if 'cust_map' not in self.current_instance:
             self.current_instance['cust_map'] = {c['id']: c for c in self.current_instance['customers']}
             self.current_instance['cust_map'][0] = self.current_instance['depot']
@@ -151,14 +155,13 @@ class ADP_Engine:
             cust = self.current_instance['cust_map'][cid]
             if cust['demand'] > v_state['capacity']: continue
                 
-            # Deterministic feasibility check (Masking)
             dist = euclidean_distance(curr_coord, (cust['x'], cust['y']))
             expected_arrival = current_time + dist 
             if expected_arrival <= cust['L']:
                 actions.append(cid)
         return actions
 
-    def calculate_contribution_and_transition(self, vehicle_idx, state, action_id, stochastic=False):
+    def calculate_transition(self, vehicle_idx, state, action_id, stochastic=False):
         instance = self.current_instance
         v_state = state['vehicle_states'][vehicle_idx]
         curr_loc_id = v_state['loc']
@@ -176,6 +179,8 @@ class ADP_Engine:
         revenue = 0.0
         penalty = 0.0
         service_time = 0.0
+        wait_time = 0.0
+        outcome = 'SUCCESS'
         
         next_unvisited = state['unvisited_ids'].copy()
         next_cap = v_state['capacity']
@@ -185,23 +190,32 @@ class ADP_Engine:
         else:
             cust = instance['cust_map'][action_id]
             
-            if arrival_time > cust['L']: # Late
+            if arrival_time > cust['L']: 
                 penalty = HARD_LATE_PENALTY
                 next_unvisited.discard(action_id) 
                 service_start = arrival_time
-            elif arrival_time < cust['E']: # Early
+                outcome = 'LATE_SKIP'
+                
+            elif arrival_time < cust['E']: 
                 wait_time = cust['E'] - arrival_time
-                wage_billable_minutes += wait_time 
                 service_start = cust['E']
+                if curr_loc_id == 0 and action_id == 0:
+                    pass 
+                else:
+                    wage_billable_minutes += wait_time 
+                
                 service_time = StochasticSampler.sample_service_time(cust['mean_service_time']) if stochastic else cust['mean_service_time']
                 wage_billable_minutes += service_time
+                
                 revenue = cust['demand'] * REVENUE_PER_UNIT_DEMAND
                 next_cap -= cust['demand']
                 next_unvisited.discard(action_id)
-            else: # On Time
+                
+            else: 
                 service_start = arrival_time
                 service_time = StochasticSampler.sample_service_time(cust['mean_service_time']) if stochastic else cust['mean_service_time']
                 wage_billable_minutes += service_time
+                
                 revenue = cust['demand'] * REVENUE_PER_UNIT_DEMAND
                 next_cap -= cust['demand']
                 next_unvisited.discard(action_id)
@@ -218,9 +232,28 @@ class ADP_Engine:
         }
         next_state['vehicle_states'][vehicle_idx] = next_v_state
         
-        return contribution, next_state, finish_time, (transit_cost, wage_cost, penalty, service_time, travel_time)
+        log_data = {
+            'node_id': action_id,
+            'outcome': outcome,
+            'arrival_time': arrival_time,
+            'service_start': service_start,
+            'departure_time': finish_time,
+            'wait_time': wait_time,
+            'service_duration': service_time,
+            'transit_cost': transit_cost,
+            'wage_cost': wage_cost,
+            'penalty_cost': penalty,
+            'dist': dist
+        }
+        
+        return contribution, next_state, finish_time, log_data
 
-    def run_episode(self, train=True):
+    def run_episode(self, train=True, collect_data=False):
+        """
+        Runs a simulation episode.
+        If train=True and collect_data=True, returns a list of (features, target) tuples 
+        instead of updating weights immediately. This enables parallel training batches.
+        """
         instance = self.current_instance
         state = {
             'current_time': DEPOT_E_TIME,
@@ -228,17 +261,29 @@ class ADP_Engine:
             'vehicle_states': []
         }
         
-        events = []
+        training_experiences = [] # For parallel data collection
+        
+        vehicle_traces = []
         for v in range(instance['num_vehicles']):
             state['vehicle_states'].append({'loc': 0, 'time_avail': DEPOT_E_TIME, 'capacity': instance['vehicle_capacity']})
-            heapq.heappush(events, (DEPOT_E_TIME, v))
-            
-        # Episode Metrics
+            vehicle_traces.append([{
+                'node_id': 0,
+                'type': 'DEPOT_START',
+                'arrival_time': DEPOT_E_TIME,
+                'service_start': DEPOT_E_TIME,
+                'departure_time': DEPOT_E_TIME,
+                'wait_time': 0,
+                'service_duration': 0
+            }])
+
+        events = [(DEPOT_E_TIME, v) for v in range(instance['num_vehicles'])]
+        heapq.heapify(events)
+        
         ep_stats = {
-            'total_cost': 0.0, 'total_transit_cost': 0.0, 'total_wage_cost': 0.0, 
-            'total_penalty': 0.0, 'missed_customers': 0, 
-            'total_service_time': 0.0, 'total_transit_time': 0.0,
-            'hard_late_count': 0
+            'total_cost': 0.0, 
+            'total_distance': 0.0,
+            'hard_late_count': 0,
+            'missed_customers': 0
         }
         
         while events:
@@ -250,42 +295,54 @@ class ADP_Engine:
             
             feasible_actions = self.get_feasible_actions(v_idx, state)
             
-            # Policy Selection
+            # --- DECISION LOGIC ---
             if train and np.random.rand() < EPSILON:
                 action = np.random.choice(feasible_actions)
             else:
                 best_val = -float('inf')
                 best_action = 0 
+                
                 for a in feasible_actions:
-                    contrib, post_state, _, _ = self.calculate_contribution_and_transition(v_idx, state, a, stochastic=False)
+                    contrib, post_state, f_time, _ = self.calculate_transition(v_idx, state, a, stochastic=False)
+                    
+                    risk_penalty = 0.0
+                    if a != 0:
+                        cust = instance['cust_map'][a]
+                        slack = cust['L'] - f_time
+                        if slack < 15: 
+                            risk_penalty = RISK_AVERSION_FACTOR * (15 - slack)
+
                     feats = extract_features(post_state, v_idx, instance, self.global_statics)
                     future_val = self.vfa.estimate(feats)
-                    if contrib + (GAMMA * future_val) > best_val:
-                        best_val = contrib + (GAMMA * future_val)
+                    val = contrib + (GAMMA * future_val) - risk_penalty
+                    if val > best_val:
+                        best_val = val
                         best_action = a
                 action = best_action
             
-            # Execution
-            real_contrib, next_state, real_finish_time, costs = self.calculate_contribution_and_transition(v_idx, state, action, stochastic=True)
-            t_cost, w_cost, pen, s_time, tr_time = costs
+            # --- EXECUTION ---
+            real_contrib, next_state, real_finish_time, log = self.calculate_transition(v_idx, state, action, stochastic=True)
             
-            # Track Metrics
-            ep_stats['total_transit_cost'] += t_cost
-            ep_stats['total_wage_cost'] += w_cost
-            ep_stats['total_penalty'] += pen
-            ep_stats['total_cost'] += (t_cost + w_cost + pen)
-            ep_stats['total_service_time'] += s_time
-            ep_stats['total_transit_time'] += tr_time
-            if pen > 0: ep_stats['hard_late_count'] += 1
+            step_cost = log['transit_cost'] + log['wage_cost'] + log['penalty_cost']
+            ep_stats['total_cost'] += step_cost
+            ep_stats['total_distance'] += log['dist']
+            if log['outcome'] == 'LATE_SKIP': ep_stats['hard_late_count'] += 1
 
-            # Training Update
+            vehicle_traces[v_idx].append(log)
+
             if train:
-                _, post_state_chosen, _, _ = self.calculate_contribution_and_transition(v_idx, state, action, stochastic=False)
+                _, post_state_chosen, _, _ = self.calculate_transition(v_idx, state, action, stochastic=False)
                 feats_current = extract_features(post_state_chosen, v_idx, instance, self.global_statics)
                 feats_next = extract_features(next_state, v_idx, instance, self.global_statics)
                 target = real_contrib + (GAMMA * self.vfa.estimate(feats_next))
-                self.total_steps += 1
-                self.vfa.update(feats_current, target, self.total_steps)
+                
+                if collect_data:
+                    # Parallel mode: Store data for main process update
+                    training_experiences.append((feats_current, target))
+                else:
+                    # Sequential mode: Update immediately
+                    self.total_steps += 1
+                    self.vfa.update(feats_current, target, self.total_steps)
 
             state = next_state
             
@@ -293,83 +350,107 @@ class ADP_Engine:
                 if action != 0:
                     heapq.heappush(events, (real_finish_time, v_idx))
                 elif action == 0 and state['unvisited_ids']:
-                    # Retry heuristic
                     next_try = time_now + 30
                     if next_try < DEPOT_L_TIME: heapq.heappush(events, (next_try, v_idx))
 
+        if collect_data:
+            return training_experiences
+            
         ep_stats['missed_customers'] = len(state['unvisited_ids'])
-        return ep_stats
+        
+        full_log = {
+            'total_cost': ep_stats['total_cost'],
+            'hard_lates': ep_stats['hard_late_count'],
+            'missed_customers': ep_stats['missed_customers'],
+            'vehicle_traces': vehicle_traces
+        }
+        
+        return full_log
 
-# --- WORKER FUNCTION FOR PARALLEL EVALUATION ---
+# --- WORKER FUNCTIONS ---
+
+def load_instance_worker(filepath):
+    """Helper to load instances in parallel."""
+    try:
+        data = load_instance(filepath)
+        if isinstance(data['customers'], pd.DataFrame):
+            data['customers'] = data['customers'].to_dict(orient='records')
+        return data
+    except Exception as e:
+        print(f"Error loading {filepath}: {e}")
+        return None
+
+def train_batch_worker(instance, weights, global_statics):
+    """
+    Worker to run one training episode in parallel.
+    Returns collected training experiences (features, targets).
+    """
+    try:
+        # Reconstruct local agent
+        agent = ADP_Engine(global_statics, weights)
+        agent.set_instance(instance)
+        # Run episode in data collection mode
+        experiences = agent.run_episode(train=True, collect_data=True)
+        return experiences
+    except Exception as e:
+        print(f"Training worker error: {e}")
+        return []
+
 def evaluate_single_instance_worker(filepath, weights, global_statics):
-    """
-    Worker that runs the ADP policy on a single instance for N simulations.
-    """
     try:
         data = load_instance(filepath)
         if isinstance(data['customers'], pd.DataFrame):
             data['customers'] = data['customers'].to_dict(orient='records')
             
-        # Create local engine with trained weights
         agent = ADP_Engine(global_statics, weights)
         agent.set_instance(data)
         
-        sim_results = []
-        for _ in range(EVAL_SIMULATIONS_PER_INSTANCE):
-            sim_results.append(agent.run_episode(train=False))
+        daily_logs = []
+        
+        for i in range(EVAL_SIMULATIONS_PER_INSTANCE):
+            log = agent.run_episode(train=False)
+            log['day_index'] = i
+            daily_logs.append(log)
             
-        # Aggregate
-        df = pd.DataFrame(sim_results)
-        metrics = {
-            'mean_total_cost': df['total_cost'].mean(),
-            'std_total_cost': df['total_cost'].std(),
-            'mean_missed_customers': df['missed_customers'].mean(),
-            'mean_hard_late_penalties': df['hard_late_count'].mean(),
-            'mean_service_time': df['total_service_time'].mean(),
-            'fleet_utilization': df['total_service_time'].mean() / max(1, (data['num_vehicles'] * global_statics['time_horizon']))
-        }
-        
-        # Save Result
-        base_name = os.path.basename(filepath).replace('.json', '')
-        output_file = os.path.join(ADP_RESULTS_DIR, f"{base_name}_adp_results.json")
-        
         output_data = {
             'instance_file': os.path.basename(filepath),
             'policy_type': 'ADP_Master_Policy',
-            'metrics': metrics
+            'N': data['num_customers'],
+            'V': data['num_vehicles'],
+            'daily_simulation_logs': daily_logs
         }
+        
+        base_name = os.path.basename(filepath).replace('.json', '')
+        output_file = os.path.join(ADP_RESULTS_DIR, f"{base_name}_adp_results.json")
         
         with open(output_file, 'w') as f:
             json.dump(output_data, f, indent=4)
             
-        return (metrics['mean_total_cost'], metrics['mean_missed_customers'])
+        avg_cost = np.mean([l['total_cost'] for l in daily_logs])
+        return avg_cost
         
     except Exception as e:
         return f"Error: {str(e)}"
 
 # --- MAIN PIPELINE ---
 def run_adp_pipeline():
-    # 1. Load ALL Instances for Training Data
     instance_files = sorted([os.path.join(BASE_DATA_DIR, f) for f in os.listdir(BASE_DATA_DIR) if f.endswith('.json')])
-    
-    if not instance_files:
-        print(f"No instances found in {BASE_DATA_DIR}")
-        return
+    if not instance_files: return
 
-    print(f"Loading {len(instance_files)} instances for global scaling...")
+    # 1. PARALLEL LOAD
+    print(f"Loading {len(instance_files)} instances (Parallel)...")
     all_instances = []
-    for f in instance_files:
-        data = load_instance(f)
-        if isinstance(data['customers'], pd.DataFrame):
-            data['customers'] = data['customers'].to_dict(orient='records')
-        all_instances.append(data)
-        
-    # 2. Calculate Global Statics
+    with ProcessPoolExecutor() as executor:
+        futures = {executor.submit(load_instance_worker, f): f for f in instance_files}
+        for future in as_completed(futures):
+            res = future.result()
+            if res: all_instances.append(res)
+            
+    # 2. Global Statics
     max_demand = max(sum(c['demand'] for c in inst['customers']) for inst in all_instances)
     max_vehicles = max(inst['num_vehicles'] for inst in all_instances)
     max_fleet_cap = max(inst['num_vehicles'] * inst['vehicle_capacity'] for inst in all_instances)
-    max_coord = max(COORDINATE_BOUNDS)
-    max_dist = euclidean_distance((0,0), (max_coord, max_coord))
+    max_dist = euclidean_distance((0,0), (max(COORDINATE_BOUNDS), max(COORDINATE_BOUNDS)))
     
     global_statics = {
         'max_global_demand': max_demand,
@@ -379,60 +460,86 @@ def run_adp_pipeline():
         'time_horizon': DEPOT_L_TIME - DEPOT_E_TIME
     }
     
-    # 3. TRAIN
-    print(f"--- Starting Training ({TRAIN_EPISODES} Episodes) ---")
+    # 3. PARALLEL TRAINING (Mini-Batch SGD)
+    print(f"--- Training ADP Policy ({TRAIN_EPISODES} Episodes, Batch Size {TRAIN_BATCH_SIZE}) ---")
     start_train = time.time()
     agent = ADP_Engine(global_statics)
     
-    for e in range(TRAIN_EPISODES):
-        agent.set_instance(random.choice(all_instances))
-        agent.run_episode(train=True)
-        if (e+1) % 500 == 0:
-            print(f"  > Trained {e+1} episodes...")
+    total_episodes_completed = 0
+    
+    # We will submit batches of work
+    with ProcessPoolExecutor() as executor:
+        while total_episodes_completed < TRAIN_EPISODES:
+            current_batch_size = min(TRAIN_BATCH_SIZE, TRAIN_EPISODES - total_episodes_completed)
+            
+            # Submit batch of episodes
+            futures = []
+            for _ in range(current_batch_size):
+                inst = random.choice(all_instances)
+                # Pass current weights copies
+                futures.append(executor.submit(train_batch_worker, inst, agent.vfa.weights.copy(), global_statics))
+            
+            # Collect results and update weights
+            batch_experiences = []
+            for future in as_completed(futures):
+                batch_experiences.extend(future.result())
+                
+            # Perform Updates in Main Process (Mini-Batch Update)
+            # We preserve the iteration count logic for learning rate decay
+            for feats, target in batch_experiences:
+                agent.total_steps += 1
+                agent.vfa.update(feats, target, agent.total_steps)
+                
+            total_episodes_completed += current_batch_size
+            
+            if total_episodes_completed % 100 == 0:
+                print(f"  > Completed {total_episodes_completed} episodes...")
             
     print(f"Training Complete ({time.time() - start_train:.1f}s)")
     
     # 4. SAVE WEIGHTS
-    weights_file = os.path.join(ADP_STRATEGY_DIR, 'adp_master_weights.pkl')
-    with open(weights_file, 'wb') as f:
-        save_data = {'weights': agent.vfa.weights, 'global_statics': global_statics}
-        pickle.dump(save_data, f)
-    print(f"Weights saved to: {weights_file}")
-    print(f"Final Weights: {agent.vfa.weights}")
+    weights_pickle = os.path.join(ADP_STRATEGY_DIR, 'adp_master_weights.pkl')
+    with open(weights_pickle, 'wb') as f:
+        pickle.dump({'weights': agent.vfa.weights, 'global_statics': global_statics}, f)
+        
+    weights_json = os.path.join(ADP_STRATEGY_DIR, 'adp_master_weights.json')
+    readable_weights = {
+        'feature_names': FEATURE_NAMES,
+        'weights': agent.vfa.weights.tolist(),
+        'global_statics': global_statics
+    }
+    with open(weights_json, 'w') as f:
+        json.dump(readable_weights, f, indent=4)
+        
+    print(f"Weights saved to: {ADP_STRATEGY_DIR}")
+    print("\n--- Final Learned Weights ---")
+    for name, w in zip(FEATURE_NAMES, agent.vfa.weights):
+        print(f"  {name:<30}: {w:.4f}")
 
     # 5. PARALLEL EVALUATION
-    print(f"\n--- Starting Parallel Evaluation on {len(instance_files)} Instances ---")
-    print(f"Simulations per instance: {EVAL_SIMULATIONS_PER_INSTANCE}")
-    
-    eval_costs = []
-    eval_missed = []
+    print(f"\n--- Evaluating ({EVAL_SIMULATIONS_PER_INSTANCE} runs/instance) ---")
     
     with ProcessPoolExecutor() as executor:
-        # Pass weights explicitly to workers
         futures = {
             executor.submit(evaluate_single_instance_worker, f, agent.vfa.weights, global_statics): f 
             for f in instance_files
         }
         
         completed = 0
+        costs = []
         for future in as_completed(futures):
             completed += 1
             res = future.result()
-            
-            if isinstance(res, tuple):
-                eval_costs.append(res[0])
-                eval_missed.append(res[1])
+            if isinstance(res, (int, float)):
+                costs.append(res)
                 if completed % 10 == 0:
-                    print(f"  [{completed}/{len(instance_files)}] Processed. Avg Cost: {res[0]:.0f}")
+                    print(f"  [{completed}/{len(instance_files)}] Avg Cost: ${res:.0f}")
             else:
                 print(f"  [{completed}/{len(instance_files)}] Failed: {res}")
 
-    # 6. Final Summary
     print("\n" + "="*40)
-    print("ADP MASTER POLICY EVALUATION RESULTS")
-    print("="*40)
-    print(f"Average Cost across Dataset: ${np.mean(eval_costs):,.2f}")
-    print(f"Average Missed Customers: {np.mean(eval_missed):.2f}")
+    if costs:
+        print(f"ADP AVERAGE COST: ${np.mean(costs):,.0f}")
     print(f"Results saved to: {ADP_RESULTS_DIR}")
     print("="*40)
 

@@ -1,9 +1,0 @@
-{
-    "instance_file": "N100_V075_I047.json",
-    "policy_type": "RL_DQN",
-    "metrics": {
-        "mean_total_cost": 8594.812290712453,
-        "mean_missed_customers": 0.9,
-        "fleet_utilization": 0.027335926945789644
-    }
-}

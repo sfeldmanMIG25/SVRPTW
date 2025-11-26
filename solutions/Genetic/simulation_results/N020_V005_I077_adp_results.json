@@ -1,9 +1,0 @@
-{
-    "instance_file": "N020_V005_I077.json",
-    "policy_type": "Genetic_Evolution",
-    "metrics": {
-        "mean_total_cost": 890.2672122953943,
-        "mean_missed_customers": 5.98,
-        "fleet_utilization": 0.05849550467215204
-    }
-}

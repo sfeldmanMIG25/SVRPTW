@@ -3,80 +3,84 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import json
-from scipy.stats import lognorm, norm
+import time
+from math import sqrt, ceil
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from tqdm import tqdm
 from config import (
     COORDINATE_BOUNDS, DEPOT_COORDINATE,
-    SERVICE_TIME_BASE_MEAN, SERVICE_TIME_SIGMA
+    SERVICE_TIME_BASE_MEAN
 )
-from math import sqrt, ceil
 
 def euclidean_distance(p1, p2):
-    """Calculates the Euclidean distance between two points."""
     return sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2)
 
-def generate_instance(num_customers, vehicle_factor=0.5, demand_range=(10, 25), time_window_range=(60, 180)):
+def generate_instance(num_customers):
     """
-    Generates a feasible SVRPTW problem instance.
+    Generates an EXTREME-Variance Stress Test Instance.
+    - Tight Windows (30-90m)
+    - Long Routes (Low Vehicle Factor)
+    - High Capacity (Failures are purely time-based)
+    """
     
-    Args:
-        num_customers (int): The number of customers (N).
-        vehicle_factor (float): V will be set to ceil(N * vehicle_factor). Default is 0.5.
-        demand_range (tuple): Min and Max demand for customers.
-        time_window_range (tuple): Min and Max duration of a customer's time window (in minutes).
+    # --- STRESS TEST CONFIGURATION ---
+    # 0.30 means ~3 vehicles for 10 customers. 
+    # Long routes maximize the accumulation of delays.
+    vehicle_factor = 0.30
+    
+    # 40% Capacity Buffer -> We almost never fail on Load.
+    # Failures will be driven by Time Variance.
+    capacity_buffer = 1.40 
+    
+    # EXTREME TIGHTNESS: 30 to 90 minutes
+    time_window_range = (30, 90)
 
-    Returns:
-        dict: A dictionary containing all instance data.
-    """
+    # --- GENERATION LOGIC ---
+    num_vehicles = max(2, int(ceil(num_customers * vehicle_factor)))
     
-    # 1. Determine Vehicle Count
-    num_vehicles = max(1, ceil(num_customers * vehicle_factor))
-    
-    # 2. Generate Customer Data
     customer_data = []
     total_demand = 0
     
-    # Randomly generate customer points and demands
+    day_start = 480
+    day_end = 960
+    
     for i in range(1, num_customers + 1):
-        # Coordinates will be NumPy floats, which is generally fine
         x = np.random.uniform(*COORDINATE_BOUNDS)
         y = np.random.uniform(*COORDINATE_BOUNDS)
-        # Demand is a NumPy int
-        demand = np.random.randint(*demand_range)
+        
+        demand = np.random.randint(10, 25)
         total_demand += demand
         
-        # Time Window Generation
-        # Assume a standard operating day starts at 480 minutes (8:00 AM) and ends at 960 minutes (4:00 PM)
-        # Time in minutes from midnight.
-        earliest_start = 480 
-        latest_end = 960
-        
-        # Calculate max duration for time window
+        # Time Window
         max_duration = np.random.uniform(*time_window_range) 
         
-        # Randomly place the time window start (E_i) within the operating day
-        E_i = np.random.uniform(earliest_start, latest_end - max_duration)
-        L_i = E_i + max_duration
+        dist_from_depot = euclidean_distance((x, y), DEPOT_COORDINATE)
+        # Increased padding factor (2.0) to account for the heavy-tail travel times
+        travel_padding = dist_from_depot * 2.0 
         
-        # Mean service time is small fraction of the window duration
-        mean_service_time = SERVICE_TIME_BASE_MEAN 
+        min_E = day_start + travel_padding
+        max_E = day_end - max_duration - travel_padding - SERVICE_TIME_BASE_MEAN
+        
+        if max_E < min_E:
+            E_i = (day_start + day_end) / 2 - (max_duration/2)
+        else:
+            E_i = np.random.uniform(min_E, max_E)
+            
+        L_i = E_i + max_duration
         
         customer_data.append({
             'id': i,
             'x': x,
             'y': y,
-            'demand': int(demand), # Explicitly convert demand to standard Python int
-            'E': E_i, # Earliest time
-            'L': L_i, # Latest time
-            'mean_service_time': mean_service_time
+            'demand': int(demand),
+            'E': E_i, 
+            'L': L_i, 
+            'mean_service_time': SERVICE_TIME_BASE_MEAN
         })
         
-    # 3. Determine Vehicle Capacity (Tight but Feasible)
-    # Capacity Q = (Total Demand / Num Vehicles) * Buffer Factor
-    # Buffer factor > 1 ensures feasibility, but a small factor ensures high utilization.
-    buffer_factor = 1.25  # 25% buffer over the theoretical minimum
-    vehicle_capacity = int(ceil((total_demand / num_vehicles) * buffer_factor)) # Ensure capacity is standard int
+    avg_demand_per_vehicle = total_demand / num_vehicles
+    vehicle_capacity = int(ceil(avg_demand_per_vehicle * capacity_buffer))
     
-    # 4. Create Instance Dictionary
     instance = {
         'num_customers': num_customers,
         'num_vehicles': num_vehicles,
@@ -85,152 +89,87 @@ def generate_instance(num_customers, vehicle_factor=0.5, demand_range=(10, 25), 
             'id': 0,
             'x': DEPOT_COORDINATE[0],
             'y': DEPOT_COORDINATE[1],
-            'E': earliest_start, # Depot available time
-            'L': latest_end,   # Depot return time
+            'E': day_start,
+            'L': day_end,
         },
         'customers': pd.DataFrame(customer_data)
     }
-    
     return instance
 
 def create_visualization(instance, file_path):
-    """Creates and saves a scatter plot visualization of the VRP instance."""
+    plt.switch_backend('Agg') 
+    
     df = instance['customers']
+    plt.figure(figsize=(8, 8))
     
-    # Calculate time window duration and normalize for color coding (tightness)
-    df['duration'] = df['L'] - df['E']
-    min_dur = df['duration'].min()
-    max_dur = df['duration'].max()
+    durations = df['L'] - df['E']
+    plt.scatter(df['x'], df['y'], c=durations, cmap='viridis', s=df['demand']*4, edgecolors='black', alpha=0.8)
+    plt.colorbar(label='Window Duration (Darker = Shorter)')
     
-    # Color map: Shorter duration (tighter window) = darker/hotter color
-    colors = df['duration']
-    cmap = plt.cm.plasma_r 
-    
-    plt.figure(figsize=(10, 10))
-    
-    # Plot Customers
-    scatter = plt.scatter(df['x'], df['y'], 
-                          c=colors, cmap=cmap, 
-                          s=df['demand'] * 3, # Marker size proportional to demand
-                          edgecolor='black', 
-                          alpha=0.8)
-    
-    # Plot Depot (starting point)
-    plt.scatter(instance['depot']['x'], instance['depot']['y'], 
-                marker='s', color='red', s=300, label='Depot (Start/End)', zorder=5)
-    
-    # Add labels and title
-    plt.title(f"SVRPTW Instance (N={instance['num_customers']}, V={instance['num_vehicles']}, Q={instance['vehicle_capacity']})", fontsize=14)
-    plt.xlabel("X Coordinate")
-    plt.ylabel("Y Coordinate")
-    plt.xlim(*COORDINATE_BOUNDS)
-    plt.ylim(*COORDINATE_BOUNDS)
-    
-    # Add Color Bar for Time Window Duration (Tightness)
-    cbar = plt.colorbar(scatter)
-    cbar.set_label('Time Window Duration (min) - [Tighter $\leftarrow$ Looser]', rotation=270, labelpad=20)
-
-    # Add Legend for Demand (Size)
-    handles, labels = scatter.legend_elements(prop="sizes", alpha=0.6, num=5)
-    # Filter and format legend labels
-    raw_sizes = [int(s/3) for s in scatter.properties()['sizes']]
-    unique_sizes = sorted(list(set(raw_sizes)))
-    
-    # Find the indices corresponding to the min and max unique sizes to select handles
-    legend_handles = []
-    legend_labels = []
-    
-    # Create custom legend for demands
-    for d in unique_sizes:
-        # Create a proxy artist (circle) for the legend
-        legend_handles.append(plt.Line2D([0], [0], marker='o', color='w', 
-                                         markerfacecolor='gray', markersize=sqrt(d*3), 
-                                         markeredgecolor='black', linestyle=''))
-        legend_labels.append(f"Demand: {d}")
-
-    plt.legend(legend_handles, legend_labels, loc='lower left', title="Demand Size", scatterpoints=1)
-
-
-    plt.grid(True, linestyle='--', alpha=0.6)
-    plt.gca().set_aspect('equal', adjustable='box')
-    
-    # Save the figure
+    plt.scatter(instance['depot']['x'], instance['depot']['y'], marker='s', color='red', s=200, label='Depot')
+    plt.title(f"Extreme Instance: N={instance['num_customers']} V={instance['num_vehicles']}")
+    plt.xlim(0, 100); plt.ylim(0, 100)
+    plt.legend()
     plt.savefig(file_path)
     plt.close()
 
-def generate_all_instances(n_instances=100, customer_counts=[20, 50, 100]):
-    """Generates a list of all required problem instances and saves them."""
-    
-    # Define directory structure
-    base_dir = 'instances'
+def _worker_generate_single_instance(i, scenarios, data_dir, visuals_dir):
+    try:
+        np.random.seed(int(time.time() * 1000) % 2**32 + i)
+        
+        N = np.random.choice(scenarios)
+        instance = generate_instance(num_customers=N)
+        
+        filename = f"N{str(N).zfill(3)}_V{str(instance['num_vehicles']).zfill(3)}_I{str(i).zfill(3)}"
+        
+        data_to_save = instance.copy()
+        data_to_save['customers'] = data_to_save['customers'].to_dict(orient='records')
+        
+        for k in ['num_customers', 'num_vehicles', 'vehicle_capacity']:
+            data_to_save[k] = int(data_to_save[k])
+        for k, v in data_to_save['depot'].items():
+            if hasattr(v, 'item'): data_to_save['depot'][k] = v.item()
+
+        json_path = os.path.join(data_dir, f"{filename}.json")
+        with open(json_path, 'w') as f:
+            json.dump(data_to_save, f, indent=4)
+            
+        visual_path = os.path.join(visuals_dir, f"{filename}.png")
+        create_visualization(instance, visual_path)
+        
+        return f"Generated {filename}"
+    except Exception as e:
+        return f"Error on index {i}: {e}"
+
+def generate_all_instances(n_instances=100):
+    base_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instances')
     data_dir = os.path.join(base_dir, 'data')
     visuals_dir = os.path.join(base_dir, 'visuals')
     
-    # Create directories if they don't exist
+    print("Cleaning old instances...")
+    if os.path.exists(data_dir):
+        for f in os.listdir(data_dir):
+            if f.endswith('.json'): os.remove(os.path.join(data_dir, f))
+    
     os.makedirs(data_dir, exist_ok=True)
     os.makedirs(visuals_dir, exist_ok=True)
     
-    print(f"Saving {n_instances} instances and visuals to: '{base_dir}/'")
+    print(f"Generating {n_instances} Extreme-Variance instances (Parallel)...")
+    
+    scenarios = [20, 50, 100] 
+    
+    max_workers = os.cpu_count()
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(_worker_generate_single_instance, i, scenarios, data_dir, visuals_dir): i
+            for i in range(1, n_instances + 1)
+        }
+        
+        results = []
+        for future in tqdm(as_completed(futures), total=n_instances, desc="Generating", unit="inst"):
+            results.append(future.result())
 
-    instances = []
-    for i in range(1, n_instances + 1):
-        # Select N and factor (biased towards 1/2)
-        N = np.random.choice(customer_counts)
-        factor = np.random.choice([0.25, 0.5, 0.75], p=[0.2, 0.6, 0.2]) 
-        
-        instance = generate_instance(num_customers=N, vehicle_factor=factor)
-        instances.append(instance)
-        
-        # --- File Naming Convention ---
-        # Example: N100_V050_I001.json
-        N_str = str(instance['num_customers']).zfill(3)
-        V_str = str(instance['num_vehicles']).zfill(3)
-        I_str = str(i).zfill(3)
-        filename_base = f"N{N_str}_V{V_str}_I{I_str}"
-        
-        # 1. Save Data (JSON)
-        data_filepath = os.path.join(data_dir, f"{filename_base}.json")
-        
-        # Prepare data for JSON saving
-        data_to_save = instance.copy()
-        # Convert the customers DataFrame to a list of records (dicts)
-        data_to_save['customers'] = data_to_save['customers'].to_dict(orient='records')
-
-        # Convert remaining numpy floats/ints in the main dictionary to standard Python types
-        for key in ['num_customers', 'num_vehicles', 'vehicle_capacity']:
-            if isinstance(data_to_save[key], np.integer):
-                data_to_save[key] = int(data_to_save[key])
-            elif isinstance(data_to_save[key], np.floating):
-                data_to_save[key] = float(data_to_save[key])
-
-        # Recursively convert numpy types in the depot dictionary
-        for key, value in data_to_save['depot'].items():
-             if isinstance(value, (np.integer, np.floating)):
-                data_to_save['depot'][key] = value.item() # .item() converts numpy scalar to standard Python scalar
-
-        
-        with open(data_filepath, 'w') as f:
-            json.dump(data_to_save, f, indent=4)
-        
-        # 2. Save Visualization (PNG)
-        visual_filepath = os.path.join(visuals_dir, f"{filename_base}.png")
-        create_visualization(instance, visual_filepath)
-        
-        # print progress update
-        if i % 10 == 0 or i == n_instances:
-            print(f"  > Generated and saved instance {i}/{n_instances}: {filename_base}")
-
-    return instances
+    print("Generation Complete.")
 
 if __name__ == '__main__':
-    # The main execution block now calls the saving function
-    all_instances = generate_all_instances(n_instances=100)
-    
-    # Display details of the first instance for verification
-    first_instance = all_instances[0]
-    print("\n--- Verification Sample (Instance 1) ---")
-    print(f"Customers (N): {first_instance['num_customers']}")
-    print(f"Vehicles (V): {first_instance['num_vehicles']}")
-    print(f"Capacity (Q): {first_instance['vehicle_capacity']}")
-    print(f"Total Demand: {first_instance['customers']['demand'].sum()}")
-    print("Check the 'instances/data/' and 'instances/visuals/' folders for the saved files.")
+    generate_all_instances(n_instances=100)

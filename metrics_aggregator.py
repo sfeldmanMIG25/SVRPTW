@@ -1,215 +1,154 @@
+import numpy as np
+import pandas as pd
 import os
 import json
-import pandas as pd
-import glob
-import numpy as np
-import matplotlib.pyplot as plt
+import re
+from collections import defaultdict
+from config import DEPOT_E_TIME, DEPOT_L_TIME
 
 # --- CONFIGURATION ---
-DEPOT_OPEN_DURATION = 480 
-HARD_LATE_PENALTY = 1000.0 # Define penalty here for standardization
+SOLUTIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'solutions')
 
-def find_results_files(base_dir):
+def get_metadata_from_filename(filename):
+    """Parses N and V from filename (e.g., N020_V005_...) as fallback."""
+    match = re.search(r'N(\d+)_V(\d+)', filename)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    return 0, 0
+
+def calculate_instance_metrics(filepath):
     """
-    Locates result files for ORTools, Greedy, ADP, Genetic, MCTS (all variants), and RL.
+    Parses a 'new style' JSON. 
+    Computes Sample Standard Deviation (ddof=1) for Cost, Missed, and Util.
     """
-    paths = {
-        'ORTools': [],
-        'Greedy': [],
-        'ADP': [],
-        'Genetic': [],
-        'MCTS': [],
-        'MCTS_Improved': [],
-        'MCTS_Hybrid': [],
-        'RL': []
-    }
-    
-    # 1. ORTools Paths
-    or_path = os.path.join(base_dir, 'solutions', 'ORTools', 'simulation_results')
-    if os.path.exists(or_path):
-        paths['ORTools'] = glob.glob(os.path.join(or_path, '*.json'))
+    try:
+        with open(filepath, 'r') as f:
+            data = json.load(f)
         
-    # 2. Greedy Paths
-    greedy_path = os.path.join(base_dir, 'solutions', 'Greedy', 'simulation_results')
-    if os.path.exists(greedy_path):
-        paths['Greedy'] = glob.glob(os.path.join(greedy_path, '*.json'))
-        
-    # 3. ADP Paths
-    adp_path_1 = os.path.join(base_dir, 'solutions', 'ADP', 'simulation_results')
-    adp_path_2 = os.path.join(base_dir, 'instances', 'solutions', 'ADP', 'simulation_results')
-    if os.path.exists(adp_path_1): paths['ADP'] += glob.glob(os.path.join(adp_path_1, '*.json'))
-    if os.path.exists(adp_path_2): paths['ADP'] += glob.glob(os.path.join(adp_path_2, '*.json'))
-    paths['ADP'] = list(set(paths['ADP']))
+        if 'daily_simulation_logs' not in data:
+            return None
 
-    # 4. Genetic Paths
-    genetic_path = os.path.join(base_dir, 'solutions', 'Genetic', 'simulation_results')
-    if os.path.exists(genetic_path):
-        paths['Genetic'] = glob.glob(os.path.join(genetic_path, '*.json'))
-
-    # 5. MCTS (Basic) Paths
-    mcts_path = os.path.join(base_dir, 'solutions', 'MCTS', 'simulation_results')
-    if os.path.exists(mcts_path):
-        paths['MCTS'] = glob.glob(os.path.join(mcts_path, '*.json'))
-
-    # 6. MCTS Improved Paths
-    mcts_imp_path = os.path.join(base_dir, 'solutions', 'MCTS_Improved', 'simulation_results')
-    if os.path.exists(mcts_imp_path):
-        paths['MCTS_Improved'] = glob.glob(os.path.join(mcts_imp_path, '*.json'))
-
-    # 7. MCTS Hybrid Paths
-    mcts_hyb_path = os.path.join(base_dir, 'solutions', 'MCTS_Hybrid', 'simulation_results')
-    if os.path.exists(mcts_hyb_path):
-        paths['MCTS_Hybrid'] = glob.glob(os.path.join(mcts_hyb_path, '*.json'))
-
-    # 8. RL Paths
-    rl_path = os.path.join(base_dir, 'solutions', 'RL', 'simulation_results') 
-    if os.path.exists(rl_path):
-        paths['RL'] = glob.glob(os.path.join(rl_path, '*.json'))
-    
-    return paths
-
-def parse_results(method_name, file_list):
-    records = []
-    print(f"Parsing {len(file_list)} files for {method_name}...")
-    
-    for filepath in file_list:
-        try:
-            with open(filepath, 'r') as f:
-                data = json.load(f)
+        logs = data['daily_simulation_logs']
+        if not logs:
+            return None
             
-            metrics = data.get('metrics', {})
+        # Robust Retrieval of V (Vehicle Count)
+        num_vehicles = data.get('V', 0)
+        if num_vehicles == 0:
+            _, num_vehicles = get_metadata_from_filename(os.path.basename(filepath))
             
-            # --- Standardize Fields ---
-            fname = os.path.basename(filepath)
-            instance_id = fname.replace('.json', '').replace('_stochastic_results', '')\
-                               .replace('_greedy_results', '').replace('_adp_results', '')\
-                               .replace('_mcts_results', '').replace('_mcts_improved_results', '')\
-                               .replace('_mcts_hybrid_results', '').replace('_rl_results', '')
-            
-            # Raw Operational Cost (Fuel + Wages + Late Fines)
-            raw_cost = metrics.get('mean_stochastic_cost', metrics.get('mean_total_cost', 0.0))
-            
-            # Failures
-            missed = metrics.get('mean_missed_customers', 0.0)
-            late = metrics.get('mean_hard_late_penalties', 0.0)
-            total_failures = missed + late
-            
-            # --- FIX: STANDARDIZED TRUE COST CALCULATION ---
-            # True Cost = Operational Cost + (Missed Customers * $1000)
-            # We assume 'raw_cost' does NOT include the missed penalty (based on your last instruction).
-            # We add it here to make the comparison fair across all methods.
-            true_total_cost = raw_cost + (missed * HARD_LATE_PENALTY)
-            
-            # Utilization
-            utilization = 0.0
-            if 'fleet_utilization' in metrics:
-                utilization = metrics['fleet_utilization']
-            else:
-                efficiency = metrics.get('mean_service_efficiency', 0.0)
-                transit = metrics.get('mean_transit_min', 0.0)
-                est_service_time = efficiency * transit
-                num_vehicles = data.get('V', 0)
-                if num_vehicles > 0:
-                    capacity_time = num_vehicles * DEPOT_OPEN_DURATION
-                    utilization = est_service_time / capacity_time
-            
-            records.append({
-                'Instance': instance_id,
-                'Method': method_name,
-                'Avg_Cost': true_total_cost, # Use the corrected cost
-                'Avg_Failures': total_failures,
-                'Utilization_Pct': utilization * 100.0, 
-                'N_Customers': data.get('N', 0),
-                'N_Vehicles': data.get('V', 0)
-            })
-            
-        except Exception as e:
-            print(f"Error parsing {filepath}: {e}")
-            
-    return records
-
-def generate_report():
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    print(f"Scanning for results in: {script_dir}")
-    file_paths = find_results_files(script_dir)
-    
-    all_records = []
-    for method, files in file_paths.items():
-        if files:
-            all_records.extend(parse_results(method, files))
+        # Fleet Capacity (minutes)
+        if num_vehicles > 0:
+            fleet_capacity_min = num_vehicles * (DEPOT_L_TIME - DEPOT_E_TIME)
         else:
-            print(f"Warning: No result files found for {method}")
+            fleet_capacity_min = 1.0 # Prevent div/0 if parsing fails
+
+        daily_costs = []
+        daily_missed = [] 
+        daily_utils = []
+
+        for log in logs:
+            # 1. Cost
+            daily_costs.append(log.get('total_cost', 0.0))
             
-    if not all_records:
-        print("No results found to aggregate.")
+            # 2. Missed (Strict Missed + Hard Lates as Total Failures)
+            failures = log.get('missed_customers', 0) + log.get('hard_lates', 0)
+            daily_missed.append(failures)
+            
+            # 3. Utilization
+            total_service_min = 0.0
+            if 'vehicle_traces' in log:
+                for trace in log['vehicle_traces']:
+                    for step in trace:
+                        total_service_min += step.get('service_duration', 0.0)
+            
+            util_ratio = total_service_min / max(1, fleet_capacity_min)
+            daily_utils.append(util_ratio)
+
+        # --- Compute Sample Standard Deviations (ddof=1) ---
+        # If N < 2, Std Dev is 0
+        if len(logs) > 1:
+            std_cost = np.std(daily_costs, ddof=1)
+            std_missed = np.std(daily_missed, ddof=1)
+            std_util = np.std(daily_utils, ddof=1)
+        else:
+            std_cost = 0.0
+            std_missed = 0.0
+            std_util = 0.0
+
+        return {
+            'policy': data.get('policy_type', 'Unknown'),
+            'mean_cost': np.mean(daily_costs),
+            'std_cost': std_cost,
+            'mean_missed': np.mean(daily_missed),
+            'std_missed': std_missed,
+            'mean_util': np.mean(daily_utils),
+            'std_util': std_util
+        }
+
+    except Exception as e:
+        return None
+
+def run_aggregator():
+    print(f"--- Metrics Aggregator (Grouped by Policy) ---")
+    print(f"Scanning: {SOLUTIONS_DIR}")
+    
+    result_files = []
+    for root, dirs, files in os.walk(SOLUTIONS_DIR):
+        for file in files:
+            if file.endswith('_results.json'):
+                result_files.append(os.path.join(root, file))
+    
+    if not result_files:
+        print("No result files found.")
         return
 
-    df = pd.DataFrame(all_records)
+    # Accumulate metrics by policy
+    policy_stats = defaultdict(list)
     
-    # --- Summary Table ---
-    summary = df.groupby('Method').agg({
-        'Avg_Cost': 'mean',
-        'Avg_Failures': 'mean',
-        'Utilization_Pct': 'mean',
-        'Instance': 'count'
-    }).rename(columns={'Instance': 'Count'}).reset_index()
-    
-    print("\n" + "="*60)
-    print("AGGREGATE PERFORMANCE SUMMARY (Adjusted for Missed Penalties)")
-    print("="*60)
-    print(summary.to_string(index=False, float_format=lambda x: "{:.2f}".format(x)))
-    print("="*60)
-    
-    output_dir = os.path.join(script_dir, 'solutions')
-    os.makedirs(output_dir, exist_ok=True)
-    
-    summary.to_csv(os.path.join(output_dir, 'benchmark_method_summary.csv'), index=False)
-    df.to_csv(os.path.join(output_dir, 'benchmark_full_details.csv'), index=False)
-    
-    generate_charts(df, output_dir)
+    for f in result_files:
+        res = calculate_instance_metrics(f)
+        if res:
+            policy_stats[res['policy']].append(res)
+            
+    if not policy_stats:
+        print("No valid new-style JSON files found.")
+        return
 
-def generate_charts(df, output_dir):
-    plt.style.use('bmh') 
+    # --- Print Table ---
+    # Layout: Policy | Count | Cost (Mean/Std) | Fail (Mean/Std) | Util (Mean/Std)
+    header = (f"{'Policy / Method':<30} | {'Inst':<5} | "
+              f"{'Avg Cost':<10} | {'Avg Std':<10} | "
+              f"{'Avg Fail':<8} | {'Avg Std':<8} | "
+              f"{'Avg Util':<8} | {'Avg Std':<8}")
+              
+    print("\n" + "="*115)
+    print(header)
+    print("-" * 115)
     
-    methods = df['Method'].unique()
-    colors = {
-        'ORTools': '#1f77b4',      # Blue
-        'Greedy': '#ff7f0e',       # Orange
-        'ADP': '#2ca02c',          # Green
-        'Genetic': '#9467bd',      # Purple
-        'MCTS': '#d62728',         # Red
-        'MCTS_Improved': '#e377c2',# Pink
-        'MCTS_Hybrid': '#bcbd22',  # Olive/Gold
-        'RL': '#17becf'            # Cyan
-    }
-    
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    
-    # Chart 1: Average Cost
-    avg_cost = df.groupby('Method')['Avg_Cost'].mean()
-    axes[0].bar(avg_cost.index, avg_cost.values, color=[colors.get(m, 'gray') for m in avg_cost.index])
-    axes[0].set_title('True Avg Cost ($)\n(Ops + Missed Penalty)')
-    axes[0].set_ylabel('Cost')
-    plt.setp(axes[0].get_xticklabels(), rotation=45, ha='right')
-    
-    # Chart 2: Failures
-    avg_fail = df.groupby('Method')['Avg_Failures'].mean()
-    axes[1].bar(avg_fail.index, avg_fail.values, color=[colors.get(m, 'gray') for m in avg_fail.index])
-    axes[1].set_title('Avg Failures (Missed + Late)')
-    axes[1].set_ylabel('Count')
-    plt.setp(axes[1].get_xticklabels(), rotation=45, ha='right')
-    
-    # Chart 3: Utilization
-    avg_util = df.groupby('Method')['Utilization_Pct'].mean()
-    axes[2].bar(avg_util.index, avg_util.values, color=[colors.get(m, 'gray') for m in avg_util.index])
-    axes[2].set_title('Fleet Utilization (%)')
-    axes[2].set_ylabel('Percentage')
-    plt.setp(axes[2].get_xticklabels(), rotation=45, ha='right')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, 'benchmark_charts.png'))
-    plt.close()
-    print(f"Charts saved to: {os.path.join(output_dir, 'benchmark_charts.png')}")
+    for policy, results in sorted(policy_stats.items()):
+        n = len(results)
+        
+        # Calculate Grand Averages across instances
+        avg_cost = np.mean([r['mean_cost'] for r in results])
+        avg_std_cost = np.mean([r['std_cost'] for r in results])
+        
+        avg_miss = np.mean([r['mean_missed'] for r in results])
+        avg_std_miss = np.mean([r['std_missed'] for r in results])
+        
+        avg_util = np.mean([r['mean_util'] for r in results])
+        avg_std_util = np.mean([r['std_util'] for r in results])
+        
+        print(f"{policy:<30} | {n:<5} | "
+              f"${avg_cost:<9,.0f} | "
+              f"${avg_std_cost:<9,.0f} | "
+              f"{avg_miss:<8.2f} | "
+              f"{avg_std_miss:<8.2f} | "
+              f"{avg_util*100:<7.1f}% | "
+              f"{avg_std_util*100:<7.2f}%") 
 
-if __name__ == "__main__":
-    generate_report()
+    print("="*115)
+    print("Note: 'Avg Std' is the average of Sample Standard Deviations across instances.")
+
+if __name__ == '__main__':
+    run_aggregator()
