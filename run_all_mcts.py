@@ -7,40 +7,34 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 def main():
     print("\n" + "="*60)
-    print("STARTING BATCH MCTS EXECUTION (Direct Import Mode)")
+    print("STARTING BATCH MCTS EXECUTION")
+    print("Targets: Standard MCTS + Unified Hybrid (AlphaZero-Style)")
     print("="*60 + "\n")
     
     total_start = time.time()
     
-    # --- 1. Basic MCTS ---
-    print("\n>>> [1/3] Running Basic MCTS...")
+    # --- 1. Standard MCTS (Optimized Baseline) ---
+    print("\n>>> [1/2] Running Standard MCTS (mcts_solver.py)...")
     try:
-        from mcts_solver import run_mcts_pipeline as run_basic
-        run_basic()
-        print(">>> [SUCCESS] Basic MCTS finished.")
+        # Import dynamically to ensure we pick up the latest version
+        import mcts_solver
+        mcts_solver.run_pipeline()
+        print(">>> [SUCCESS] Standard MCTS finished.")
+    except ImportError:
+        print(">>> [ERROR] Could not import 'mcts_solver.py'. Check filename.")
     except Exception as e:
-        print(f">>> [FAILURE] Basic MCTS crashed: {e}")
+        print(f">>> [FAILURE] Standard MCTS crashed: {e}")
 
-    # --- 2. Improved MCTS ---
-    print("\n>>> [2/3] Running Improved MCTS...")
+    # --- 2. Unified Hybrid MCTS (The "AlphaZero" Solver) ---
+    print("\n>>> [2/2] Running Unified Hybrid MCTS (mcts_hybrid_solver.py)...")
     try:
-        # We import inside the function or loop to ensure fresh loading if needed, 
-        # but standard import at top is fine too. 
-        # Aliasing prevents name collision.
-        from mcts_improved_solver import run_mcts_pipeline as run_improved
-        run_improved()
-        print(">>> [SUCCESS] Improved MCTS finished.")
+        import mcts_hybrid_solver
+        mcts_hybrid_solver.run_pipeline()
+        print(">>> [SUCCESS] Unified Hybrid MCTS finished.")
+    except ImportError:
+        print(">>> [ERROR] Could not import 'mcts_hybrid_solver.py'. Ensure the previous code block was saved with this name.")
     except Exception as e:
-        print(f">>> [FAILURE] Improved MCTS crashed: {e}")
-
-    # --- 3. Hybrid MCTS ---
-    print("\n>>> [3/3] Running Hybrid MCTS (ADP-Guided)...")
-    try:
-        from mcts_hybrid_solver import run_mcts_pipeline as run_hybrid
-        run_hybrid()
-        print(">>> [SUCCESS] Hybrid MCTS finished.")
-    except Exception as e:
-        print(f">>> [FAILURE] Hybrid MCTS crashed: {e}")
+        print(f">>> [FAILURE] Unified Hybrid MCTS crashed: {e}")
 
     total_elapsed = time.time() - total_start
     
