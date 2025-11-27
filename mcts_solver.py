@@ -284,8 +284,6 @@ class MCTSAgent:
             # Select
             while not node.untried_actions and node.children:
                 node = node.best_child()
-                # Note: In a real multi-vehicle tree, v_idx would rotate. 
-                # Here we simplify assuming MCTS plans for ONE vehicle's next step.
                 
             # Expand
             if node.untried_actions:
