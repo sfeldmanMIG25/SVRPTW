@@ -4,7 +4,7 @@ import os
 import json
 import re
 from collections import defaultdict
-from config import DEPOT_E_TIME, DEPOT_L_TIME
+from config import DEPOT_E_TIME, DEPOT_L_TIME, HARD_LATE_PENALTY
 
 # --- CONFIGURATION ---
 SOLUTIONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'solutions')
@@ -19,7 +19,11 @@ def get_metadata_from_filename(filename):
 def calculate_instance_metrics(filepath):
     """
     Parses a 'new style' JSON. 
-    Computes Sample Standard Deviation (ddof=1) for Cost, Missed, and Util.
+    Computes Sample Standard Deviation (ddof=1) for:
+      - Pure Op Cost (No Penalties)
+      - Full Cost (Op + Missed + Lates)
+      - Failures (Missed + Lates)
+      - Utilization
     """
     try:
         with open(filepath, 'r') as f:
@@ -41,56 +45,79 @@ def calculate_instance_metrics(filepath):
         if num_vehicles > 0:
             fleet_capacity_min = num_vehicles * (DEPOT_L_TIME - DEPOT_E_TIME)
         else:
-            fleet_capacity_min = 1.0 # Prevent div/0 if parsing fails
+            fleet_capacity_min = 1.0 
 
-        daily_costs = []
-        daily_missed = [] 
-        daily_utils = []
+        # Vectors
+        vec_op_cost = []
+        vec_full_cost = []
+        vec_failures = []
+        vec_util = []
 
         for log in logs:
-            # 1. Cost
-            daily_costs.append(log.get('total_cost', 0.0))
+            # 1. Extract Raw Data
+            # Note: Solvers report 'total_cost' which typically includes Hard Late penalties
+            # We must strip them to get "Pure Op Cost"
+            reported_total_cost = log.get('total_cost', 0.0)
             
-            # 2. Missed (Strict Missed + Hard Lates as Total Failures)
-            failures = log.get('missed_customers', 0) + log.get('hard_lates', 0)
-            daily_missed.append(failures)
+            # Count Failures
+            missed = log.get('missed_customers', 0)
+            # Handle key variations for hard lates
+            hard_lates = log.get('hard_lates', log.get('hard_late_count', 0))
             
-            # 3. Utilization
+            total_failures = missed + hard_lates
+            
+            # 2. Derive Pure Op Cost (Wages + Transit)
+            # Remove the penalty component that exists in reported_total_cost
+            # Simulator logic: total_cost = wages + transit + (hard_lates * 1000)
+            pure_op_cost = reported_total_cost - (hard_lates * HARD_LATE_PENALTY)
+            
+            # 3. Derive Full Economic Cost
+            # Full = Pure Op + (All Failures * Penalty)
+            full_cost = pure_op_cost + (total_failures * HARD_LATE_PENALTY)
+            
+            # 4. Utilization
             total_service_min = 0.0
             if 'vehicle_traces' in log:
                 for trace in log['vehicle_traces']:
                     for step in trace:
                         total_service_min += step.get('service_duration', 0.0)
-            
             util_ratio = total_service_min / max(1, fleet_capacity_min)
-            daily_utils.append(util_ratio)
 
-        # --- Compute Sample Standard Deviations (ddof=1) ---
-        # If N < 2, Std Dev is 0
+            # Store
+            vec_op_cost.append(pure_op_cost)
+            vec_full_cost.append(full_cost)
+            vec_failures.append(total_failures)
+            vec_util.append(util_ratio)
+
+        # --- Compute Statistics (ddof=1 for Sample Std Dev) ---
         if len(logs) > 1:
-            std_cost = np.std(daily_costs, ddof=1)
-            std_missed = np.std(daily_missed, ddof=1)
-            std_util = np.std(daily_utils, ddof=1)
+            std_op = np.std(vec_op_cost, ddof=1)
+            std_full = np.std(vec_full_cost, ddof=1)
+            std_fail = np.std(vec_failures, ddof=1)
+            std_util = np.std(vec_util, ddof=1)
         else:
-            std_cost = 0.0
-            std_missed = 0.0
-            std_util = 0.0
+            std_op = 0.0; std_full = 0.0; std_fail = 0.0; std_util = 0.0
 
         return {
             'policy': data.get('policy_type', 'Unknown'),
-            'mean_cost': np.mean(daily_costs),
-            'std_cost': std_cost,
-            'mean_missed': np.mean(daily_missed),
-            'std_missed': std_missed,
-            'mean_util': np.mean(daily_utils),
+            # Means
+            'mean_op': np.mean(vec_op_cost),
+            'mean_full': np.mean(vec_full_cost),
+            'mean_fail': np.mean(vec_failures),
+            'mean_util': np.mean(vec_util),
+            # Deviations (Average of these will be taken later)
+            'std_op': std_op,
+            'std_full': std_full,
+            'std_fail': std_fail,
             'std_util': std_util
         }
 
     except Exception as e:
+        # print(f"Error parsing {filepath}: {e}")
         return None
 
 def run_aggregator():
-    print(f"--- Metrics Aggregator (Grouped by Policy) ---")
+    print(f"--- Metrics Aggregator (Revised Cost Logic) ---")
     print(f"Scanning: {SOLUTIONS_DIR}")
     
     result_files = []
@@ -116,11 +143,13 @@ def run_aggregator():
         return
 
     # --- Print Table ---
-    # Layout: Policy | Count | Cost (Mean/Std) | Fail (Mean/Std) | Util (Mean/Std)
-    header = (f"{'Policy / Method':<30} | {'Inst':<5} | "
-              f"{'Avg Cost':<10} | {'Avg Std':<10} | "
-              f"{'Avg Fail':<8} | {'Avg Std':<8} | "
-              f"{'Avg Util':<8} | {'Avg Std':<8}")
+    # Layout: Policy | N | Op (Mean/Std) | Full (Mean/Std) | Fail (Mean/Std) | Util (Mean/Std)
+    
+    header = (f"{'Policy':<22} | {'N':<3} | "
+              f"{'Op Mean':<8} | {'Op Std':<7} | "
+              f"{'Full Mean':<9} | {'Full Std':<8} | "
+              f"{'Fail':<5} | {'F.Std':<5} | "
+              f"{'Util':<5} | {'U.Std':<5}")
               
     print("\n" + "="*115)
     print(header)
@@ -129,26 +158,34 @@ def run_aggregator():
     for policy, results in sorted(policy_stats.items()):
         n = len(results)
         
-        # Calculate Grand Averages across instances
-        avg_cost = np.mean([r['mean_cost'] for r in results])
-        avg_std_cost = np.mean([r['std_cost'] for r in results])
+        # Grand Averages (Mean of Means, Mean of Stds)
         
-        avg_miss = np.mean([r['mean_missed'] for r in results])
-        avg_std_miss = np.mean([r['std_missed'] for r in results])
+        # Op Cost
+        avg_op = np.mean([r['mean_op'] for r in results])
+        avg_op_std = np.mean([r['std_op'] for r in results])
         
+        # Full Cost
+        avg_full = np.mean([r['mean_full'] for r in results])
+        avg_full_std = np.mean([r['std_full'] for r in results])
+        
+        # Failures
+        avg_fail = np.mean([r['mean_fail'] for r in results])
+        avg_fail_std = np.mean([r['std_fail'] for r in results])
+        
+        # Utilization
         avg_util = np.mean([r['mean_util'] for r in results])
-        avg_std_util = np.mean([r['std_util'] for r in results])
+        avg_util_std = np.mean([r['std_util'] for r in results])
         
-        print(f"{policy:<30} | {n:<5} | "
-              f"${avg_cost:<9,.0f} | "
-              f"${avg_std_cost:<9,.0f} | "
-              f"{avg_miss:<8.2f} | "
-              f"{avg_std_miss:<8.2f} | "
-              f"{avg_util*100:<7.1f}% | "
-              f"{avg_std_util*100:<7.2f}%") 
+        print(f"{policy:<22} | {n:<3} | "
+              f"${avg_op:<7,.0f} | ${avg_op_std:<6,.0f} | "
+              f"${avg_full:<8,.0f} | ${avg_full_std:<7,.0f} | "
+              f"{avg_fail:<5.2f} | {avg_fail_std:<5.2f} | "
+              f"{avg_util*100:<4.1f}% | {avg_util_std*100:<4.2f}%") 
 
     print("="*115)
-    print("Note: 'Avg Std' is the average of Sample Standard Deviations across instances.")
+    print(f"Logic: Full Cost = Pure Op Cost + ((Missed + Hard Lates) * ${HARD_LATE_PENALTY})")
+    print("       Pure Op Cost = Wages + Transit (No Penalties)")
+    print("       Std Devs are calculated per instance (across 30 days) then averaged.")
 
 if __name__ == '__main__':
     run_aggregator()
