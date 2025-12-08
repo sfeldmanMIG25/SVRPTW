@@ -40,7 +40,7 @@ BASE_DATA_DIR = os.path.join(SCRIPT_DIR, 'instances', 'data')
 SOLUTIONS_DIR = os.path.join(SCRIPT_DIR, 'solutions')
 RL_MODEL_PATH = os.path.join(SOLUTIONS_DIR, 'RL', 'vrp_dqn.pth')
 
-SYSTEM_SOLUTIONS_DIR = os.path.join(SOLUTIONS_DIR, 'MCTS_System')
+SYSTEM_SOLUTIONS_DIR = os.path.join(SOLUTIONS_DIR, 'MCTS')
 SYSTEM_RESULTS_DIR = os.path.join(SYSTEM_SOLUTIONS_DIR, 'simulation_results')
 
 os.makedirs(SYSTEM_SOLUTIONS_DIR, exist_ok=True)

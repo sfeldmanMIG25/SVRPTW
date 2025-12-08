@@ -1,0 +1,12 @@
+{
+    "travel_alpha": 3.337606006645025,
+    "travel_beta": 4.84406626048732,
+    "risk_buffer_high": 52.072410543614794,
+    "risk_buffer_mid": 40.092437604825776,
+    "risk_buffer_low": 11.666968913040396,
+    "risk_ramp_steepness": 1.8463088662383589,
+    "pruning_multiplier": 3.8883366538919875,
+    "hungarian_rounds": 6,
+    "hungarian_batch_size": 44,
+    "replan_buffer_ratio": 0.3461373197522161
+}
