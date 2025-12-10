@@ -86,16 +86,6 @@ Step 4: Run Auction Solver
 Execute the decentralized bidding mechanism. This solver uses a Dual Bayesian Estimator to learn traffic noise over time.
 
 bash
-# Optional: Tune hyperparameters first (warning: computationally expensive)
-# python tuner.py
-
-# Run the solver using optimized parameters
-python auction_solver.py
-Step 5: Analyze Results
-Aggregate Metrics:
-Generates the summary table (Mean Op Cost, Failure Rates) comparing all strategies.
-
-bash
 python metrics_aggregator.py
 Visualize Strategies:
 Creates visual overlays showing where specific policies fail (e.g., missed customers marked in red).
