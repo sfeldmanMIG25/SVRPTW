@@ -35,6 +35,17 @@
           }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python D:/SVRPTW/.claude/hooks/session_briefing.py"
+          }
+        ]
+      }
     ]
   },
   "permissions": {

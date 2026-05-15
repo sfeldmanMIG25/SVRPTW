@@ -1,6 +1,6 @@
 """
-Stop hook: writes a timestamped Obsidian-compatible session note to
-.claude/wiki/sessions/ after every Claude session ends.
+Stop hook: writes a timestamped Obsidian session note into the
+WorldsFinestVRP vault after every Claude session ends.
 
 Receives JSON on stdin:
   {"session_id": "...", "transcript_path": "...", "stop_hook_active": false}
@@ -11,12 +11,16 @@ import sys
 from datetime import datetime
 
 REPO_ROOT = "D:/SVRPTW"
-SESSIONS_DIR = os.path.join(REPO_ROOT, ".claude", "wiki", "sessions")
+VAULT_ROOT = os.path.join(REPO_ROOT, "WorldsFinestVRP")
+SESSIONS_DIR = os.path.join(VAULT_ROOT, "Sessions")
+MAX_SESSION_NOTES = 100  # rolling cap
 
 
-def extract_summary(transcript_path: str, max_chars: int = 800) -> str:
+def extract_summary(transcript_path: str, max_chars: int = 800) -> dict:
+    """Pull the last user + assistant messages and a rough tool-use count."""
+    out = {"last_user": "", "last_assistant": "", "tool_count": 0, "msg_count": 0}
     if not transcript_path or not os.path.exists(transcript_path):
-        return "_No transcript available._"
+        return out
     try:
         messages = []
         with open(transcript_path, "r", encoding="utf-8") as f:
@@ -28,8 +32,14 @@ def extract_summary(transcript_path: str, max_chars: int = 800) -> str:
                     messages.append(json.loads(line))
                 except json.JSONDecodeError:
                     continue
+        out["msg_count"] = len(messages)
+        for msg in messages:
+            content = msg.get("content", "")
+            if isinstance(content, list):
+                for c in content:
+                    if isinstance(c, dict) and c.get("type") == "tool_use":
+                        out["tool_count"] += 1
 
-        last_user = last_assistant = ""
         for msg in reversed(messages):
             role = msg.get("role", "")
             content = msg.get("content", "")
@@ -38,21 +48,15 @@ def extract_summary(transcript_path: str, max_chars: int = 800) -> str:
                     c.get("text", "") for c in content if isinstance(c, dict)
                 )
             content = str(content).strip()[:max_chars]
-            if role == "user" and not last_user:
-                last_user = content
-            if role == "assistant" and not last_assistant:
-                last_assistant = content
-            if last_user and last_assistant:
+            if role == "user" and not out["last_user"]:
+                out["last_user"] = content
+            if role == "assistant" and not out["last_assistant"]:
+                out["last_assistant"] = content
+            if out["last_user"] and out["last_assistant"]:
                 break
-
-        parts = []
-        if last_user:
-            parts.append(f"**Last user message:**\n> {last_user[:300]}")
-        if last_assistant:
-            parts.append(f"**Last assistant message:**\n> {last_assistant[:400]}")
-        return "\n\n".join(parts) if parts else "_Empty transcript._"
     except Exception as e:
-        return f"_Error reading transcript: {e}_"
+        out["last_assistant"] = f"_Error reading transcript: {e}_"
+    return out
 
 
 def main():
@@ -70,39 +74,51 @@ def main():
     timestamp = now.strftime("%Y-%m-%d_%H-%M")
     note_path = os.path.join(SESSIONS_DIR, f"{timestamp}-{session_id}.md")
 
-    summary = extract_summary(transcript_path)
+    s = extract_summary(transcript_path)
+    last_user = s["last_user"] or "_(no user message captured)_"
+    last_assistant = s["last_assistant"] or "_(no assistant message captured)_"
 
     note = f"""---
 date: {now.strftime("%Y-%m-%d")}
 time: {now.strftime("%H:%M")}
 session_id: {session_id}
 project: SVRPTW
+messages: {s["msg_count"]}
+tool_calls: {s["tool_count"]}
 tags: [session, svrptw, vrp, gart]
 ---
 
 # Session {timestamp}
 
-## Transcript Summary
+> **Stats** — {s["msg_count"]} messages, {s["tool_count"]} tool calls.
 
-{summary}
+## Last user message
+
+> {last_user[:400]}
+
+## Last assistant message
+
+> {last_assistant[:600]}
 
 ## Notes
 
 <!-- Add manual notes here -->
 
 ## Links
-- [[project-overview]]
-- [[specs]]
-- [[gart-integration]]
+
+- [[00 - Index]]
+- [[05 - Decisions & Next Steps]]
+- [[06 - Hooks & Automation]]
 """
 
     with open(note_path, "w", encoding="utf-8") as f:
         f.write(note)
 
+    # Rolling cap — keep newest N notes, prune oldest.
     session_files = sorted(
         [f for f in os.listdir(SESSIONS_DIR) if f.endswith(".md")]
     )
-    while len(session_files) > 50:
+    while len(session_files) > MAX_SESSION_NOTES:
         os.remove(os.path.join(SESSIONS_DIR, session_files.pop(0)))
 
 

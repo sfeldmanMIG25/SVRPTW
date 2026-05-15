@@ -1,0 +1,14 @@
+Claude code fails to self prompt and continue the expanding on the research goals without clear prompts. Unlike chatgpt the absense of a goal makes claude natural conservative which makes it challenging as an expiremental surveyor to complete the project task. 
+
+The purpose of this project is to create an industry grade VRP solver that outperforms all academic benchmarks on memory, performance, accuracy and human suitability. To judge visual quality we are supposed to be using VLs avaliable via open route and gemini. Worst case claude can create its own evaluator sub agent to call using a light model like haiku. The purpose of the evaluator is to figure out what visual quality means and to evaluate scores of solutions, we pull the model inputs from various model of various sizes to ensure we get a human like input of what a good VRP solution feels like from a clustering perspective and logic perspective on a real life network. 
+
+Then we have to train our own objective model to match these models, the intutution is simple. Given an objective function we optimized along we generated a solution, then we send that solution same color encoding for each route into the LLM side by side and have it pick which solution is better. This gives us a training direction to distil our function from. With respect to training we can ensure that the objective takes into account things we already derived are not in the image, such as balancing, utilization per route, and other metrics. 
+
+1. claude needs to source additional discrete technical metrics for what makes a VRP solution good and begin adding them (make sure metrics are not normalized) instead of comparing by batch we tune instance by instance doing pairwise comparisons of one objective versus another on a case by case basis to find improvement. 
+2. This is where the prescan notion of using that to tune the objective function slightly based on features of the case we can compute virtually for free overtop of the OD to tune the hyperparameters of the solvers come this is where we expirement. 
+3. We want to have increasingly complex operators guided by a stochastic trained model that choose what neighborhoods to apply and when, with rewards for disposing of islands isolated stops and legs. 
+4. Our synthetic test case basin should support allowing renewals, breaks time windows capacity route zones and other critical features. 
+5. As we come up with better solvers we need performance writting built into the harness so we can figure out exactly where we are loosing time. 
+The critical component is performance optimization, deriving a quality function and finding the pareto returns where the model finds good quality, good performance and good technical specs (gap %). 
+
+This project is called worlds finest VRP for a reason, we will try every approach we can examine features never before thought possible, from the GART Feature collection to better cached insertion. 
