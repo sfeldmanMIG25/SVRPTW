@@ -1,0 +1,31 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Generated data — covered by manifests, not commits
+instances/v1_smoke/
+instances/v1/matrices/
+instances/v1/osm_cache/
+solutions/
+bench/runs/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# graphify outputs
+graphify-out/
+
+# .claude session outputs
+.claude/wiki/sessions/
+
+# Local secrets — never commit
+.env
+.env.local
+*.key

@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-type-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip wheel
+          # Skip the GPU torch wheel in CI; CPU torch is enough for unit tests.
+          pip install torch==2.4.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements.txt
+          # transformers / qwen-vl-utils are heavy and only needed for ViVRP smoke
+          # which doesn't run in CI; skip them to keep the install lean.
+
+      - name: Lint (ruff)
+        run: ruff check svrptw/ tests/
+
+      - name: Typecheck (mypy)
+        run: mypy svrptw/ --ignore-missing-imports || true
+        # mypy is advisory until we backfill annotations in legacy modules.
+
+      - name: Unit tests
+        run: pytest tests/unit/ -q -n auto
+
+      - name: Smoke benchmark (synthetic, no OSMnx download)
+        run: |
+          python - <<'PY'
+          # Round-trip: build a tiny synthetic instance, solve with greedy+ortools, sanity-check.
+          import numpy as np
+          from svrptw.config import Settings
+          from svrptw.io import Instance, Customer, Depot
+          from svrptw.solvers.classical import greedy, ortools_solver
+
+          rng = np.random.default_rng(0)
+          n = 10
+          # Tiny symmetric matrix so we don't depend on OSMnx in CI.
+          T = rng.uniform(1.0, 8.0, size=(n + 1, n + 1))
+          np.fill_diagonal(T, 0.0)
+          T = (T + T.T) / 2
+          D = T * 0.5
+          inst = Instance(
+              instance_id="CI-N010",
+              city="Synth",
+              num_customers=n,
+              num_vehicles=3,
+              vehicle_capacity=20,
+              depot=Depot(node_id=0, x=0.0, y=0.0, ready=480, due=960),
+              customers=[Customer(id=i + 1, node_id=i + 1, x=0.0, y=0.0,
+                                  demand=2, ready=500, due=900, service=5)
+                         for i in range(n)],
+              travel_time=T, travel_dist=D,
+              asymmetry_score=0.0, seed=0,
+          )
+          s = Settings()
+          g = greedy.solve(inst, s)
+          o = ortools_solver.solve(inst, s, budget_seconds=2.0)
+          assert g.metrics["missed_deliveries"] == 0, "CI smoke: greedy must serve all"
+          assert o.metrics["missed_deliveries"] == 0, "CI smoke: ortools must serve all"
+          print("greedy:", g.metrics["operational_cost"], "ortools:", o.metrics["operational_cost"])
+          PY
+
+      - name: Spec hygiene (every spec has the required fields)
+        run: |
+          python - <<'PY'
+          import re, pathlib, sys
+          fields = ("ID:", "Title:", "Owner role:", "Status:")
+          bad = []
+          for p in pathlib.Path("specs").glob("SPEC-*.md"):
+              t = p.read_text(encoding="utf-8")
+              for f in fields:
+                  if f not in t:
+                      bad.append((p.name, f))
+          if bad:
+              for n, f in bad:
+                  print(f"::error file={n}::missing field {f!r}")
+              sys.exit(1)
+          print(f"checked {len(list(pathlib.Path('specs').glob('SPEC-*.md')))} specs OK")
+          PY

@@ -1,0 +1,628 @@
+{
+  "challenger": "portfolio@10",
+  "baseline": "pyvrp@60",
+  "axes": [
+    "operational_cost",
+    "wall_clock_seconds"
+  ],
+  "minimise": [
+    true,
+    true
+  ],
+  "headline": 0.6,
+  "n_total": 40,
+  "n_dominated": 24,
+  "n_ties": 16,
+  "logic_dropped": 0,
+  "per_n": {
+    "100": {
+      "n": 40,
+      "dom": 24,
+      "tie": 16,
+      "logic_drop": 0,
+      "headline": 0.6
+    }
+  },
+  "detail": [
+    {
+      "instance_id": "OSM-Austin-N100-I000",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1838.5304479580518,
+        "wall_clock_seconds": 13.19779549993109
+      },
+      "baseline": {
+        "operational_cost": 1754.768030887641,
+        "wall_clock_seconds": 60.84075299999677
+      }
+    },
+    {
+      "instance_id": "OSM-Austin-N100-I001",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1694.6398097149029,
+        "wall_clock_seconds": 4.680118100019172
+      },
+      "baseline": {
+        "operational_cost": 1626.9010131255552,
+        "wall_clock_seconds": 60.02121639996767
+      }
+    },
+    {
+      "instance_id": "OSM-Austin-N100-I002",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1716.6214762040704,
+        "wall_clock_seconds": 4.618056799983606
+      },
+      "baseline": {
+        "operational_cost": 1678.6686197236827,
+        "wall_clock_seconds": 60.022480500047095
+      }
+    },
+    {
+      "instance_id": "OSM-Austin-N100-I003",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1756.369016191317,
+        "wall_clock_seconds": 4.969790200004354
+      },
+      "baseline": {
+        "operational_cost": 2690.2294816676367,
+        "wall_clock_seconds": 60.02805039996747
+      }
+    },
+    {
+      "instance_id": "OSM-Austin-N100-I004",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1768.4116695036794,
+        "wall_clock_seconds": 4.143236199975945
+      },
+      "baseline": {
+        "operational_cost": 1624.8501799451758,
+        "wall_clock_seconds": 60.024061399977654
+      }
+    },
+    {
+      "instance_id": "OSM-Cambridge-N100-I000",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1127.328006898055,
+        "wall_clock_seconds": 6.9516856999835
+      },
+      "baseline": {
+        "operational_cost": 1244.0095693265068,
+        "wall_clock_seconds": 60.02808560000267
+      }
+    },
+    {
+      "instance_id": "OSM-Cambridge-N100-I001",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1241.4264506186573,
+        "wall_clock_seconds": 4.8809898000909016
+      },
+      "baseline": {
+        "operational_cost": 1326.048259746151,
+        "wall_clock_seconds": 60.07443919999059
+      }
+    },
+    {
+      "instance_id": "OSM-Cambridge-N100-I002",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1209.3477120525745,
+        "wall_clock_seconds": 4.522796700010076
+      },
+      "baseline": {
+        "operational_cost": 1211.6154821271666,
+        "wall_clock_seconds": 60.02274330006912
+      }
+    },
+    {
+      "instance_id": "OSM-Cambridge-N100-I003",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1220.36519749753,
+        "wall_clock_seconds": 4.811386299901642
+      },
+      "baseline": {
+        "operational_cost": 1355.3912072372448,
+        "wall_clock_seconds": 60.022375100059435
+      }
+    },
+    {
+      "instance_id": "OSM-Cambridge-N100-I004",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1313.8940034776222,
+        "wall_clock_seconds": 5.116881900001317
+      },
+      "baseline": {
+        "operational_cost": 1379.598009504902,
+        "wall_clock_seconds": 60.0243552000029
+      }
+    },
+    {
+      "instance_id": "OSM-Charleston-N100-I000",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1400.1185058329947,
+        "wall_clock_seconds": 4.8916713000508025
+      },
+      "baseline": {
+        "operational_cost": 1452.681622892509,
+        "wall_clock_seconds": 60.031828599981964
+      }
+    },
+    {
+      "instance_id": "OSM-Charleston-N100-I001",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1558.6473080575365,
+        "wall_clock_seconds": 4.554049500031397
+      },
+      "baseline": {
+        "operational_cost": 1495.9093049784174,
+        "wall_clock_seconds": 60.0308010999579
+      }
+    },
+    {
+      "instance_id": "OSM-Charleston-N100-I002",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1504.6757908480902,
+        "wall_clock_seconds": 4.959201899939217
+      },
+      "baseline": {
+        "operational_cost": 1565.8182034727422,
+        "wall_clock_seconds": 60.02108069998212
+      }
+    },
+    {
+      "instance_id": "OSM-Charleston-N100-I003",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1499.1191345404004,
+        "wall_clock_seconds": 5.4969017000403255
+      },
+      "baseline": {
+        "operational_cost": 1447.7028983020905,
+        "wall_clock_seconds": 60.02308970002923
+      }
+    },
+    {
+      "instance_id": "OSM-Charleston-N100-I004",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1477.7530367916406,
+        "wall_clock_seconds": 4.57571140001528
+      },
+      "baseline": {
+        "operational_cost": 1566.107458497934,
+        "wall_clock_seconds": 60.030980800045654
+      }
+    },
+    {
+      "instance_id": "OSM-Manhattan-N100-I000",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1380.4404201329203,
+        "wall_clock_seconds": 4.614975900040008
+      },
+      "baseline": {
+        "operational_cost": 1514.0629601861256,
+        "wall_clock_seconds": 60.027674999902956
+      }
+    },
+    {
+      "instance_id": "OSM-Manhattan-N100-I001",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1365.06861451946,
+        "wall_clock_seconds": 4.860207800054923
+      },
+      "baseline": {
+        "operational_cost": 1382.7992255226095,
+        "wall_clock_seconds": 60.02122049999889
+      }
+    },
+    {
+      "instance_id": "OSM-Manhattan-N100-I002",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1274.8708808270437,
+        "wall_clock_seconds": 4.833793899975717
+      },
+      "baseline": {
+        "operational_cost": 1293.945143768115,
+        "wall_clock_seconds": 60.090335999964736
+      }
+    },
+    {
+      "instance_id": "OSM-Manhattan-N100-I003",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1218.8951331943572,
+        "wall_clock_seconds": 4.5233738999813795
+      },
+      "baseline": {
+        "operational_cost": 1261.013167160532,
+        "wall_clock_seconds": 60.0227321999846
+      }
+    },
+    {
+      "instance_id": "OSM-Manhattan-N100-I004",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1352.9975006456107,
+        "wall_clock_seconds": 4.980240700067952
+      },
+      "baseline": {
+        "operational_cost": 1293.8247618313783,
+        "wall_clock_seconds": 60.02525369997602
+      }
+    },
+    {
+      "instance_id": "OSM-Paris-N100-I000",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1250.707652285938,
+        "wall_clock_seconds": 4.837160900002345
+      },
+      "baseline": {
+        "operational_cost": 1289.17943137466,
+        "wall_clock_seconds": 60.01940860005561
+      }
+    },
+    {
+      "instance_id": "OSM-Paris-N100-I001",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1330.4860136506697,
+        "wall_clock_seconds": 4.935342599987052
+      },
+      "baseline": {
+        "operational_cost": 1373.9335476394317,
+        "wall_clock_seconds": 60.028554099961184
+      }
+    },
+    {
+      "instance_id": "OSM-Paris-N100-I002",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1337.302674243847,
+        "wall_clock_seconds": 4.5610827000346035
+      },
+      "baseline": {
+        "operational_cost": 1411.045323066714,
+        "wall_clock_seconds": 60.025257900008
+      }
+    },
+    {
+      "instance_id": "OSM-Paris-N100-I003",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1351.0972372453652,
+        "wall_clock_seconds": 5.020325300050899
+      },
+      "baseline": {
+        "operational_cost": 1393.5493050376685,
+        "wall_clock_seconds": 60.02540369995404
+      }
+    },
+    {
+      "instance_id": "OSM-Paris-N100-I004",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1385.2071464443864,
+        "wall_clock_seconds": 10.004335600067861
+      },
+      "baseline": {
+        "operational_cost": 1427.150374036161,
+        "wall_clock_seconds": 60.020653899991885
+      }
+    },
+    {
+      "instance_id": "OSM-Phoenix-N100-I000",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1948.5188407879386,
+        "wall_clock_seconds": 4.75874840002507
+      },
+      "baseline": {
+        "operational_cost": 1821.4399237676016,
+        "wall_clock_seconds": 60.022120400099084
+      }
+    },
+    {
+      "instance_id": "OSM-Phoenix-N100-I001",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1896.4028662562405,
+        "wall_clock_seconds": 10.010738699929789
+      },
+      "baseline": {
+        "operational_cost": 1809.4870155334074,
+        "wall_clock_seconds": 60.02738700003829
+      }
+    },
+    {
+      "instance_id": "OSM-Phoenix-N100-I002",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1931.3039087294521,
+        "wall_clock_seconds": 4.473727700067684
+      },
+      "baseline": {
+        "operational_cost": 1802.633632117541,
+        "wall_clock_seconds": 60.023613299941644
+      }
+    },
+    {
+      "instance_id": "OSM-Phoenix-N100-I003",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1905.179768231017,
+        "wall_clock_seconds": 4.97902550001163
+      },
+      "baseline": {
+        "operational_cost": 1767.135040115034,
+        "wall_clock_seconds": 60.02597879990935
+      }
+    },
+    {
+      "instance_id": "OSM-Phoenix-N100-I004",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1955.002022977649,
+        "wall_clock_seconds": 9.935367300058715
+      },
+      "baseline": {
+        "operational_cost": 1888.0096452462062,
+        "wall_clock_seconds": 60.02519690000918
+      }
+    },
+    {
+      "instance_id": "OSM-Pittsburgh-N100-I000",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1367.5246154920278,
+        "wall_clock_seconds": 4.663829799974337
+      },
+      "baseline": {
+        "operational_cost": 1282.8765985615714,
+        "wall_clock_seconds": 60.02669080009218
+      }
+    },
+    {
+      "instance_id": "OSM-Pittsburgh-N100-I001",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1439.6200640478628,
+        "wall_clock_seconds": 5.171932499972172
+      },
+      "baseline": {
+        "operational_cost": 1440.9148443940358,
+        "wall_clock_seconds": 60.02621010004077
+      }
+    },
+    {
+      "instance_id": "OSM-Pittsburgh-N100-I002",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1376.3421229672626,
+        "wall_clock_seconds": 4.546646800008602
+      },
+      "baseline": {
+        "operational_cost": 1318.5839671057443,
+        "wall_clock_seconds": 60.03543329995591
+      }
+    },
+    {
+      "instance_id": "OSM-Pittsburgh-N100-I003",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1417.8431187969973,
+        "wall_clock_seconds": 4.3901219998952
+      },
+      "baseline": {
+        "operational_cost": 1429.298612672117,
+        "wall_clock_seconds": 60.02192620001733
+      }
+    },
+    {
+      "instance_id": "OSM-Pittsburgh-N100-I004",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1497.7196286244625,
+        "wall_clock_seconds": 5.166307699983008
+      },
+      "baseline": {
+        "operational_cost": 1454.1597349689926,
+        "wall_clock_seconds": 60.024180899956264
+      }
+    },
+    {
+      "instance_id": "OSM-SanFrancisco-N100-I000",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1347.3878115367493,
+        "wall_clock_seconds": 4.728342800051905
+      },
+      "baseline": {
+        "operational_cost": 1399.3606139490971,
+        "wall_clock_seconds": 60.03145949996542
+      }
+    },
+    {
+      "instance_id": "OSM-SanFrancisco-N100-I001",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1438.5098820713185,
+        "wall_clock_seconds": 4.375836899969727
+      },
+      "baseline": {
+        "operational_cost": 1435.623828293253,
+        "wall_clock_seconds": 60.0225453999592
+      }
+    },
+    {
+      "instance_id": "OSM-SanFrancisco-N100-I002",
+      "n": 100,
+      "axes_used": 1,
+      "logic_axis_dropped": false,
+      "outcome": "tie",
+      "challenger": {
+        "operational_cost": 1461.9774348585133,
+        "wall_clock_seconds": 4.442940799985081
+      },
+      "baseline": {
+        "operational_cost": 1393.7485700341254,
+        "wall_clock_seconds": 60.02325629990082
+      }
+    },
+    {
+      "instance_id": "OSM-SanFrancisco-N100-I003",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1367.3888617477335,
+        "wall_clock_seconds": 4.528638800024055
+      },
+      "baseline": {
+        "operational_cost": 1442.3284243718153,
+        "wall_clock_seconds": 60.02615849999711
+      }
+    },
+    {
+      "instance_id": "OSM-SanFrancisco-N100-I004",
+      "n": 100,
+      "axes_used": 2,
+      "logic_axis_dropped": false,
+      "outcome": "dominates",
+      "challenger": {
+        "operational_cost": 1358.1258995001372,
+        "wall_clock_seconds": 4.217298400006257
+      },
+      "baseline": {
+        "operational_cost": 1457.971845693672,
+        "wall_clock_seconds": 60.02008550008759
+      }
+    }
+  ]
+}

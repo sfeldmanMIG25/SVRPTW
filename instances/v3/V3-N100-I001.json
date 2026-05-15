@@ -1,0 +1,1287 @@
+{
+  "instance_id": "V3-N100-I001",
+  "city": "Synthetic",
+  "num_customers": 100,
+  "num_vehicles": 30,
+  "vehicle_capacity": 27,
+  "depot": {
+    "node_id": 0,
+    "x": 50.0,
+    "y": 50.0,
+    "ready": 480,
+    "due": 960
+  },
+  "customers": [
+    {
+      "id": 1,
+      "node_id": 1,
+      "x": 38.114715576171875,
+      "y": 23.87452507019043,
+      "demand": 7,
+      "ready": 519,
+      "due": 643,
+      "service": 8
+    },
+    {
+      "id": 2,
+      "node_id": 2,
+      "x": 92.62866973876953,
+      "y": 26.053966522216797,
+      "demand": 6,
+      "ready": 608,
+      "due": 769,
+      "service": 10
+    },
+    {
+      "id": 3,
+      "node_id": 3,
+      "x": 73.73872375488281,
+      "y": 10.539267539978027,
+      "demand": 5,
+      "ready": 556,
+      "due": 753,
+      "service": 12
+    },
+    {
+      "id": 4,
+      "node_id": 4,
+      "x": 25.974910736083984,
+      "y": 3.6327157020568848,
+      "demand": 10,
+      "ready": 765,
+      "due": 889,
+      "service": 7
+    },
+    {
+      "id": 5,
+      "node_id": 5,
+      "x": 33.6874885559082,
+      "y": 56.442413330078125,
+      "demand": 8,
+      "ready": 610,
+      "due": 723,
+      "service": 6
+    },
+    {
+      "id": 6,
+      "node_id": 6,
+      "x": 16.097230911254883,
+      "y": 35.18960952758789,
+      "demand": 9,
+      "ready": 714,
+      "due": 864,
+      "service": 9
+    },
+    {
+      "id": 7,
+      "node_id": 7,
+      "x": 80.52013397216797,
+      "y": 68.08854675292969,
+      "demand": 7,
+      "ready": 711,
+      "due": 859,
+      "service": 15
+    },
+    {
+      "id": 8,
+      "node_id": 8,
+      "x": 66.77690887451172,
+      "y": 13.511754035949707,
+      "demand": 7,
+      "ready": 566,
+      "due": 757,
+      "service": 7
+    },
+    {
+      "id": 9,
+      "node_id": 9,
+      "x": 84.29227447509766,
+      "y": 58.70806121826172,
+      "demand": 9,
+      "ready": 647,
+      "due": 774,
+      "service": 6
+    },
+    {
+      "id": 10,
+      "node_id": 10,
+      "x": 51.13850402832031,
+      "y": 59.081363677978516,
+      "demand": 1,
+      "ready": 570,
+      "due": 664,
+      "service": 10
+    },
+    {
+      "id": 11,
+      "node_id": 11,
+      "x": 59.5982666015625,
+      "y": 63.21101379394531,
+      "demand": 1,
+      "ready": 807,
+      "due": 921,
+      "service": 14
+    },
+    {
+      "id": 12,
+      "node_id": 12,
+      "x": 39.38068389892578,
+      "y": 74.9121322631836,
+      "demand": 7,
+      "ready": 560,
+      "due": 680,
+      "service": 14
+    },
+    {
+      "id": 13,
+      "node_id": 13,
+      "x": 90.7331771850586,
+      "y": 16.65576934814453,
+      "demand": 5,
+      "ready": 713,
+      "due": 822,
+      "service": 14
+    },
+    {
+      "id": 14,
+      "node_id": 14,
+      "x": 30.134437561035156,
+      "y": 81.47816467285156,
+      "demand": 3,
+      "ready": 575,
+      "due": 691,
+      "service": 12
+    },
+    {
+      "id": 15,
+      "node_id": 15,
+      "x": 84.30052947998047,
+      "y": 28.704519271850586,
+      "demand": 5,
+      "ready": 537,
+      "due": 658,
+      "service": 10
+    },
+    {
+      "id": 16,
+      "node_id": 16,
+      "x": 52.63799285888672,
+      "y": 71.56837463378906,
+      "demand": 4,
+      "ready": 725,
+      "due": 922,
+      "service": 8
+    },
+    {
+      "id": 17,
+      "node_id": 17,
+      "x": 67.69304656982422,
+      "y": 6.3432745933532715,
+      "demand": 1,
+      "ready": 688,
+      "due": 881,
+      "service": 6
+    },
+    {
+      "id": 18,
+      "node_id": 18,
+      "x": 84.66651916503906,
+      "y": 15.040696144104004,
+      "demand": 8,
+      "ready": 545,
+      "due": 671,
+      "service": 15
+    },
+    {
+      "id": 19,
+      "node_id": 19,
+      "x": 46.117530822753906,
+      "y": 68.27033996582031,
+      "demand": 8,
+      "ready": 517,
+      "due": 690,
+      "service": 11
+    },
+    {
+      "id": 20,
+      "node_id": 20,
+      "x": 98.45906829833984,
+      "y": 99.14384460449219,
+      "demand": 10,
+      "ready": 712,
+      "due": 824,
+      "service": 15
+    },
+    {
+      "id": 21,
+      "node_id": 21,
+      "x": 83.91026306152344,
+      "y": 29.42793846130371,
+      "demand": 9,
+      "ready": 674,
+      "due": 844,
+      "service": 13
+    },
+    {
+      "id": 22,
+      "node_id": 22,
+      "x": 59.96757888793945,
+      "y": 25.03540802001953,
+      "demand": 10,
+      "ready": 566,
+      "due": 683,
+      "service": 14
+    },
+    {
+      "id": 23,
+      "node_id": 23,
+      "x": 41.24162292480469,
+      "y": 2.0214579105377197,
+      "demand": 10,
+      "ready": 649,
+      "due": 806,
+      "service": 12
+    },
+    {
+      "id": 24,
+      "node_id": 24,
+      "x": 59.92725372314453,
+      "y": 33.7808837890625,
+      "demand": 9,
+      "ready": 709,
+      "due": 847,
+      "service": 11
+    },
+    {
+      "id": 25,
+      "node_id": 25,
+      "x": 50.053585052490234,
+      "y": 87.48164367675781,
+      "demand": 4,
+      "ready": 778,
+      "due": 900,
+      "service": 15
+    },
+    {
+      "id": 26,
+      "node_id": 26,
+      "x": 70.23535919189453,
+      "y": 81.12591552734375,
+      "demand": 3,
+      "ready": 601,
+      "due": 722,
+      "service": 9
+    },
+    {
+      "id": 27,
+      "node_id": 27,
+      "x": 90.18833923339844,
+      "y": 96.68577575683594,
+      "demand": 9,
+      "ready": 662,
+      "due": 833,
+      "service": 6
+    },
+    {
+      "id": 28,
+      "node_id": 28,
+      "x": 50.022621154785156,
+      "y": 54.451141357421875,
+      "demand": 10,
+      "ready": 561,
+      "due": 761,
+      "service": 12
+    },
+    {
+      "id": 29,
+      "node_id": 29,
+      "x": 53.56209945678711,
+      "y": 76.53395080566406,
+      "demand": 6,
+      "ready": 516,
+      "due": 639,
+      "service": 14
+    },
+    {
+      "id": 30,
+      "node_id": 30,
+      "x": 38.7067985534668,
+      "y": 70.5111312866211,
+      "demand": 10,
+      "ready": 681,
+      "due": 865,
+      "service": 10
+    },
+    {
+      "id": 31,
+      "node_id": 31,
+      "x": 90.87823486328125,
+      "y": 41.870540618896484,
+      "demand": 8,
+      "ready": 540,
+      "due": 673,
+      "service": 7
+    },
+    {
+      "id": 32,
+      "node_id": 32,
+      "x": 48.59652328491211,
+      "y": 19.641706466674805,
+      "demand": 5,
+      "ready": 735,
+      "due": 830,
+      "service": 12
+    },
+    {
+      "id": 33,
+      "node_id": 33,
+      "x": 85.71500396728516,
+      "y": 54.8106689453125,
+      "demand": 6,
+      "ready": 641,
+      "due": 815,
+      "service": 12
+    },
+    {
+      "id": 34,
+      "node_id": 34,
+      "x": 60.971588134765625,
+      "y": 28.6629695892334,
+      "demand": 8,
+      "ready": 594,
+      "due": 791,
+      "service": 8
+    },
+    {
+      "id": 35,
+      "node_id": 35,
+      "x": 63.152671813964844,
+      "y": 72.9011459350586,
+      "demand": 9,
+      "ready": 629,
+      "due": 818,
+      "service": 11
+    },
+    {
+      "id": 36,
+      "node_id": 36,
+      "x": 87.08995056152344,
+      "y": 73.10191345214844,
+      "demand": 1,
+      "ready": 643,
+      "due": 791,
+      "service": 5
+    },
+    {
+      "id": 37,
+      "node_id": 37,
+      "x": 37.09666061401367,
+      "y": 18.26345443725586,
+      "demand": 5,
+      "ready": 655,
+      "due": 854,
+      "service": 10
+    },
+    {
+      "id": 38,
+      "node_id": 38,
+      "x": 84.9351806640625,
+      "y": 31.518049240112305,
+      "demand": 10,
+      "ready": 713,
+      "due": 814,
+      "service": 11
+    },
+    {
+      "id": 39,
+      "node_id": 39,
+      "x": 47.712581634521484,
+      "y": 48.62919998168945,
+      "demand": 10,
+      "ready": 583,
+      "due": 750,
+      "service": 9
+    },
+    {
+      "id": 40,
+      "node_id": 40,
+      "x": 81.61187744140625,
+      "y": 51.817474365234375,
+      "demand": 7,
+      "ready": 756,
+      "due": 914,
+      "service": 6
+    },
+    {
+      "id": 41,
+      "node_id": 41,
+      "x": 79.75349426269531,
+      "y": 3.3291025161743164,
+      "demand": 3,
+      "ready": 628,
+      "due": 756,
+      "service": 15
+    },
+    {
+      "id": 42,
+      "node_id": 42,
+      "x": 52.385345458984375,
+      "y": 6.054240703582764,
+      "demand": 2,
+      "ready": 641,
+      "due": 803,
+      "service": 10
+    },
+    {
+      "id": 43,
+      "node_id": 43,
+      "x": 52.173580169677734,
+      "y": 81.4559097290039,
+      "demand": 9,
+      "ready": 543,
+      "due": 735,
+      "service": 8
+    },
+    {
+      "id": 44,
+      "node_id": 44,
+      "x": 18.724611282348633,
+      "y": 38.745521545410156,
+      "demand": 9,
+      "ready": 618,
+      "due": 773,
+      "service": 12
+    },
+    {
+      "id": 45,
+      "node_id": 45,
+      "x": 97.4181900024414,
+      "y": 14.542269706726074,
+      "demand": 10,
+      "ready": 748,
+      "due": 876,
+      "service": 11
+    },
+    {
+      "id": 46,
+      "node_id": 46,
+      "x": 76.71290588378906,
+      "y": 74.72173309326172,
+      "demand": 1,
+      "ready": 571,
+      "due": 754,
+      "service": 13
+    },
+    {
+      "id": 47,
+      "node_id": 47,
+      "x": 48.66474533081055,
+      "y": 40.03768539428711,
+      "demand": 7,
+      "ready": 644,
+      "due": 839,
+      "service": 7
+    },
+    {
+      "id": 48,
+      "node_id": 48,
+      "x": 11.266596794128418,
+      "y": 22.539840698242188,
+      "demand": 4,
+      "ready": 660,
+      "due": 825,
+      "service": 7
+    },
+    {
+      "id": 49,
+      "node_id": 49,
+      "x": 38.06651306152344,
+      "y": 80.9495620727539,
+      "demand": 1,
+      "ready": 780,
+      "due": 902,
+      "service": 8
+    },
+    {
+      "id": 50,
+      "node_id": 50,
+      "x": 34.90293884277344,
+      "y": 34.286502838134766,
+      "demand": 10,
+      "ready": 553,
+      "due": 668,
+      "service": 13
+    },
+    {
+      "id": 51,
+      "node_id": 51,
+      "x": 34.88638687133789,
+      "y": 77.74900817871094,
+      "demand": 5,
+      "ready": 578,
+      "due": 676,
+      "service": 12
+    },
+    {
+      "id": 52,
+      "node_id": 52,
+      "x": 94.37931060791016,
+      "y": 65.42874145507812,
+      "demand": 6,
+      "ready": 625,
+      "due": 740,
+      "service": 12
+    },
+    {
+      "id": 53,
+      "node_id": 53,
+      "x": 63.97344970703125,
+      "y": 12.953003883361816,
+      "demand": 10,
+      "ready": 598,
+      "due": 691,
+      "service": 5
+    },
+    {
+      "id": 54,
+      "node_id": 54,
+      "x": 45.57236099243164,
+      "y": 34.5338134765625,
+      "demand": 3,
+      "ready": 824,
+      "due": 915,
+      "service": 5
+    },
+    {
+      "id": 55,
+      "node_id": 55,
+      "x": 76.21710205078125,
+      "y": 90.22813415527344,
+      "demand": 2,
+      "ready": 543,
+      "due": 703,
+      "service": 14
+    },
+    {
+      "id": 56,
+      "node_id": 56,
+      "x": 32.70065689086914,
+      "y": 49.94285583496094,
+      "demand": 9,
+      "ready": 697,
+      "due": 857,
+      "service": 10
+    },
+    {
+      "id": 57,
+      "node_id": 57,
+      "x": 37.3060417175293,
+      "y": 3.8980064392089844,
+      "demand": 5,
+      "ready": 710,
+      "due": 833,
+      "service": 13
+    },
+    {
+      "id": 58,
+      "node_id": 58,
+      "x": 41.540771484375,
+      "y": 51.63054275512695,
+      "demand": 10,
+      "ready": 609,
+      "due": 769,
+      "service": 7
+    },
+    {
+      "id": 59,
+      "node_id": 59,
+      "x": 62.93240737915039,
+      "y": 48.50592803955078,
+      "demand": 1,
+      "ready": 532,
+      "due": 655,
+      "service": 11
+    },
+    {
+      "id": 60,
+      "node_id": 60,
+      "x": 56.05221939086914,
+      "y": 14.195998191833496,
+      "demand": 4,
+      "ready": 689,
+      "due": 841,
+      "service": 8
+    },
+    {
+      "id": 61,
+      "node_id": 61,
+      "x": 48.91421127319336,
+      "y": 89.38030242919922,
+      "demand": 9,
+      "ready": 659,
+      "due": 771,
+      "service": 13
+    },
+    {
+      "id": 62,
+      "node_id": 62,
+      "x": 78.26515197753906,
+      "y": 92.20938110351562,
+      "demand": 2,
+      "ready": 582,
+      "due": 696,
+      "service": 12
+    },
+    {
+      "id": 63,
+      "node_id": 63,
+      "x": 71.58247375488281,
+      "y": 6.1253132820129395,
+      "demand": 5,
+      "ready": 608,
+      "due": 786,
+      "service": 10
+    },
+    {
+      "id": 64,
+      "node_id": 64,
+      "x": 72.71218872070312,
+      "y": 66.58831024169922,
+      "demand": 2,
+      "ready": 760,
+      "due": 875,
+      "service": 7
+    },
+    {
+      "id": 65,
+      "node_id": 65,
+      "x": 27.494182586669922,
+      "y": 93.59978485107422,
+      "demand": 8,
+      "ready": 637,
+      "due": 831,
+      "service": 8
+    },
+    {
+      "id": 66,
+      "node_id": 66,
+      "x": 22.75908660888672,
+      "y": 60.60287094116211,
+      "demand": 5,
+      "ready": 570,
+      "due": 659,
+      "service": 7
+    },
+    {
+      "id": 67,
+      "node_id": 67,
+      "x": 51.090576171875,
+      "y": 75.92173767089844,
+      "demand": 1,
+      "ready": 679,
+      "due": 809,
+      "service": 5
+    },
+    {
+      "id": 68,
+      "node_id": 68,
+      "x": 63.29375457763672,
+      "y": 98.0506591796875,
+      "demand": 7,
+      "ready": 638,
+      "due": 801,
+      "service": 6
+    },
+    {
+      "id": 69,
+      "node_id": 69,
+      "x": 43.715980529785156,
+      "y": 82.47908020019531,
+      "demand": 2,
+      "ready": 698,
+      "due": 889,
+      "service": 5
+    },
+    {
+      "id": 70,
+      "node_id": 70,
+      "x": 76.89032745361328,
+      "y": 63.14177322387695,
+      "demand": 6,
+      "ready": 740,
+      "due": 890,
+      "service": 15
+    },
+    {
+      "id": 71,
+      "node_id": 71,
+      "x": 15.37808609008789,
+      "y": 65.64849853515625,
+      "demand": 2,
+      "ready": 527,
+      "due": 641,
+      "service": 8
+    },
+    {
+      "id": 72,
+      "node_id": 72,
+      "x": 33.02714920043945,
+      "y": 40.068424224853516,
+      "demand": 6,
+      "ready": 714,
+      "due": 870,
+      "service": 13
+    },
+    {
+      "id": 73,
+      "node_id": 73,
+      "x": 78.6321792602539,
+      "y": 51.94247817993164,
+      "demand": 3,
+      "ready": 552,
+      "due": 725,
+      "service": 12
+    },
+    {
+      "id": 74,
+      "node_id": 74,
+      "x": 35.34257888793945,
+      "y": 13.964380264282227,
+      "demand": 6,
+      "ready": 559,
+      "due": 733,
+      "service": 5
+    },
+    {
+      "id": 75,
+      "node_id": 75,
+      "x": 88.29550170898438,
+      "y": 14.232475280761719,
+      "demand": 5,
+      "ready": 568,
+      "due": 689,
+      "service": 8
+    },
+    {
+      "id": 76,
+      "node_id": 76,
+      "x": 14.573006629943848,
+      "y": 33.68903732299805,
+      "demand": 7,
+      "ready": 661,
+      "due": 843,
+      "service": 7
+    },
+    {
+      "id": 77,
+      "node_id": 77,
+      "x": 84.51493072509766,
+      "y": 58.81046676635742,
+      "demand": 10,
+      "ready": 608,
+      "due": 798,
+      "service": 5
+    },
+    {
+      "id": 78,
+      "node_id": 78,
+      "x": 14.40648365020752,
+      "y": 64.29154205322266,
+      "demand": 5,
+      "ready": 653,
+      "due": 826,
+      "service": 7
+    },
+    {
+      "id": 79,
+      "node_id": 79,
+      "x": 35.377376556396484,
+      "y": 90.7297592163086,
+      "demand": 1,
+      "ready": 576,
+      "due": 699,
+      "service": 5
+    },
+    {
+      "id": 80,
+      "node_id": 80,
+      "x": 75.47389221191406,
+      "y": 78.70091247558594,
+      "demand": 5,
+      "ready": 591,
+      "due": 733,
+      "service": 14
+    },
+    {
+      "id": 81,
+      "node_id": 81,
+      "x": 58.48332214355469,
+      "y": 22.25279998779297,
+      "demand": 9,
+      "ready": 602,
+      "due": 731,
+      "service": 14
+    },
+    {
+      "id": 82,
+      "node_id": 82,
+      "x": 68.1057357788086,
+      "y": 35.97439956665039,
+      "demand": 3,
+      "ready": 678,
+      "due": 877,
+      "service": 12
+    },
+    {
+      "id": 83,
+      "node_id": 83,
+      "x": 38.618839263916016,
+      "y": 65.9543228149414,
+      "demand": 1,
+      "ready": 551,
+      "due": 750,
+      "service": 14
+    },
+    {
+      "id": 84,
+      "node_id": 84,
+      "x": 29.885953903198242,
+      "y": 15.248871803283691,
+      "demand": 4,
+      "ready": 554,
+      "due": 739,
+      "service": 13
+    },
+    {
+      "id": 85,
+      "node_id": 85,
+      "x": 75.24796295166016,
+      "y": 12.692000389099121,
+      "demand": 2,
+      "ready": 597,
+      "due": 769,
+      "service": 14
+    },
+    {
+      "id": 86,
+      "node_id": 86,
+      "x": 40.37290954589844,
+      "y": 20.420684814453125,
+      "demand": 3,
+      "ready": 565,
+      "due": 722,
+      "service": 11
+    },
+    {
+      "id": 87,
+      "node_id": 87,
+      "x": 86.22254180908203,
+      "y": 80.3525619506836,
+      "demand": 7,
+      "ready": 624,
+      "due": 783,
+      "service": 9
+    },
+    {
+      "id": 88,
+      "node_id": 88,
+      "x": 78.8400650024414,
+      "y": 69.99488830566406,
+      "demand": 5,
+      "ready": 638,
+      "due": 726,
+      "service": 13
+    },
+    {
+      "id": 89,
+      "node_id": 89,
+      "x": 14.836499214172363,
+      "y": 72.86492919921875,
+      "demand": 10,
+      "ready": 631,
+      "due": 719,
+      "service": 7
+    },
+    {
+      "id": 90,
+      "node_id": 90,
+      "x": 56.0582275390625,
+      "y": 26.812768936157227,
+      "demand": 4,
+      "ready": 573,
+      "due": 745,
+      "service": 8
+    },
+    {
+      "id": 91,
+      "node_id": 91,
+      "x": 35.24177169799805,
+      "y": 8.607389450073242,
+      "demand": 2,
+      "ready": 610,
+      "due": 732,
+      "service": 7
+    },
+    {
+      "id": 92,
+      "node_id": 92,
+      "x": 29.635007858276367,
+      "y": 24.3887882232666,
+      "demand": 3,
+      "ready": 579,
+      "due": 735,
+      "service": 10
+    },
+    {
+      "id": 93,
+      "node_id": 93,
+      "x": 84.73836517333984,
+      "y": 42.02306365966797,
+      "demand": 1,
+      "ready": 680,
+      "due": 844,
+      "service": 10
+    },
+    {
+      "id": 94,
+      "node_id": 94,
+      "x": 42.28744888305664,
+      "y": 38.12784957885742,
+      "demand": 1,
+      "ready": 564,
+      "due": 762,
+      "service": 14
+    },
+    {
+      "id": 95,
+      "node_id": 95,
+      "x": 28.66230010986328,
+      "y": 25.79720687866211,
+      "demand": 5,
+      "ready": 521,
+      "due": 686,
+      "service": 10
+    },
+    {
+      "id": 96,
+      "node_id": 96,
+      "x": 69.7923583984375,
+      "y": 82.92842864990234,
+      "demand": 5,
+      "ready": 701,
+      "due": 896,
+      "service": 15
+    },
+    {
+      "id": 97,
+      "node_id": 97,
+      "x": 10.634812355041504,
+      "y": 40.64566421508789,
+      "demand": 2,
+      "ready": 617,
+      "due": 815,
+      "service": 5
+    },
+    {
+      "id": 98,
+      "node_id": 98,
+      "x": 77.34160614013672,
+      "y": 69.65575408935547,
+      "demand": 5,
+      "ready": 725,
+      "due": 818,
+      "service": 9
+    },
+    {
+      "id": 99,
+      "node_id": 99,
+      "x": 76.9112548828125,
+      "y": 11.780768394470215,
+      "demand": 8,
+      "ready": 796,
+      "due": 889,
+      "service": 9
+    },
+    {
+      "id": 100,
+      "node_id": 100,
+      "x": 49.5422248840332,
+      "y": 93.46965789794922,
+      "demand": 9,
+      "ready": 656,
+      "due": 819,
+      "service": 8
+    }
+  ],
+  "travel_time_matrix_path": "matrices\\V3-N100-I001.npz",
+  "travel_distance_matrix_path": "matrices\\V3-N100-I001_dist.npz",
+  "asymmetry_score": 0.03243754059076309,
+  "generator_seed": 371829,
+  "schema_version": "1.0",
+  "vehicles": [
+    {
+      "vclass": "tractor",
+      "capacity": 189,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "ev",
+      "capacity": 71,
+      "fuel_capacity": 150.0,
+      "recharge_rate": 5.0,
+      "allow_zones": []
+    },
+    {
+      "vclass": "box",
+      "capacity": 81,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 43,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "box",
+      "capacity": 85,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "ev",
+      "capacity": 58,
+      "fuel_capacity": 150.0,
+      "recharge_rate": 5.0,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 46,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "ev",
+      "capacity": 80,
+      "fuel_capacity": 150.0,
+      "recharge_rate": 5.0,
+      "allow_zones": []
+    },
+    {
+      "vclass": "box",
+      "capacity": 82,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "ev",
+      "capacity": 52,
+      "fuel_capacity": 150.0,
+      "recharge_rate": 5.0,
+      "allow_zones": []
+    },
+    {
+      "vclass": "box",
+      "capacity": 118,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 50,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 51,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 56,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 59,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "ev",
+      "capacity": 72,
+      "fuel_capacity": 150.0,
+      "recharge_rate": 5.0,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 57,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 57,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 57,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 59,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "ev",
+      "capacity": 59,
+      "fuel_capacity": 150.0,
+      "recharge_rate": 5.0,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 46,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "box",
+      "capacity": 100,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 53,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "tractor",
+      "capacity": 183,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "ev",
+      "capacity": 64,
+      "fuel_capacity": 150.0,
+      "recharge_rate": 5.0,
+      "allow_zones": []
+    },
+    {
+      "vclass": "ev",
+      "capacity": 75,
+      "fuel_capacity": 150.0,
+      "recharge_rate": 5.0,
+      "allow_zones": []
+    },
+    {
+      "vclass": "ev",
+      "capacity": 67,
+      "fuel_capacity": 150.0,
+      "recharge_rate": 5.0,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 56,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    },
+    {
+      "vclass": "van",
+      "capacity": 56,
+      "fuel_capacity": null,
+      "recharge_rate": null,
+      "allow_zones": []
+    }
+  ],
+  "breaks": {
+    "name": "EU561",
+    "drive_limit_min": 270,
+    "break_duration_min": 45,
+    "rest_node_ids": [
+      3,
+      6,
+      24,
+      42,
+      45,
+      52,
+      59,
+      71,
+      86,
+      99
+    ]
+  },
+  "chargers": [
+    {
+      "node_id": 14,
+      "rate": 7.2609263948246126,
+      "types": [
+        "ev"
+      ]
+    },
+    {
+      "node_id": 21,
+      "rate": 7.707530751383921,
+      "types": [
+        "ev"
+      ]
+    },
+    {
+      "node_id": 29,
+      "rate": 6.755493824251637,
+      "types": [
+        "ev"
+      ]
+    },
+    {
+      "node_id": 59,
+      "rate": 4.175570164110016,
+      "types": [
+        "ev"
+      ]
+    },
+    {
+      "node_id": 93,
+      "rate": 5.680434713658598,
+      "types": [
+        "ev"
+      ]
+    }
+  ]
+}

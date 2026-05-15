@@ -1,0 +1,23 @@
+economics:
+  wage_per_hour: 14.50
+  cost_per_mile: 0.50
+  hard_late_penalty: 1000.0
+  early_wait_penalty_per_minute: null
+
+time:
+  day_start_minute: 480
+  day_end_minute:   960
+
+stochastic:
+  enabled: false
+  travel_lognormal_sigma: 0.6
+  service_normal_sigma:   8.0
+  service_mean:          10.0
+  days_per_instance:     30
+
+solver:
+  name: greedy
+  params: {}
+
+seed: 0
+gart_artifact_path: D:/VRP-Advanced-Estimator-Integration/estimators/lgbm_alpha_model_v4.joblib
