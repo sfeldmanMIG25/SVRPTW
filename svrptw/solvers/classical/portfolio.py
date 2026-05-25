@@ -39,6 +39,74 @@ from svrptw.solvers.learning.bandit import LinUCBBandit
 from svrptw.solvers.learning.state_features import FEATURE_DIM, featurize
 
 from svrptw.solvers.common.local_search_destroy import destroy_island, drop_leg, drop_route
+# iter-5w-bis -- shift_route_start operator (unblocks iter-5x peak_hour)
+from svrptw.solvers.common.shift_start import shift_route_start
+# iter-6a-7-bis -- class_shift operator (unblocks iter-6a-7 skills)
+from svrptw.solvers.common.class_shift import class_shift
+# iter-6a-5-bis -- depot_shift operator (completes meta-recipe trilogy)
+from svrptw.solvers.common.depot_shift import depot_shift
+# iter-7-v4-stack16-fix -- split_route operator (inverse of merge_routes;
+# unblocks per-route cost terms by letting bandit reduce route driving
+# time via splitting long routes)
+from svrptw.solvers.common.route_splitter import split_route
+
+# Phase D3 — last bandit instance produced by `solve()`. Set on every
+# call; bench scripts read it after solve to harvest transitions when
+# `bandit_kind="logging"`. Not part of the public API.
+_LAST_BANDIT = None
+
+def _filter_ops_pool(ops_pool: dict, settings: Settings, inst: Instance) -> dict:
+    """iter-6a-2-refresh fix: conditional registration of meta-recipe operators.
+
+    When the user's Settings doesn't activate the constraint axis the operator
+    targets, the operator no-ops but still consumes bandit budget when picked.
+    Pruning these arms restores per-arm exploration time for the operators that
+    actually have work to do -- the drift fix for the embargo magnitude regression.
+
+    Three meta-recipe operators are conditionally pruned:
+      * ``shift_start``  -- needs a per-segment-of-time cost term active
+                            (``peak_hour_wage_multiplier != 1.0`` with windows,
+                            or ``embargo_violation_penalty_per_visit != 0``
+                            with windows).
+      * ``class_shift``  -- needs a class-axis cost term active (mixed_fleets
+                            with a non-zero fixed/per-mile premium, or
+                            ``skill_mismatch_penalty_per_visit != 0``).
+      * ``depot_shift``  -- needs ``inst.depots`` set with len >= 2.
+
+    Returns the mutated ``ops_pool`` for chaining. Pure-ish: only mutates the
+    passed-in dict (caller already copied via ``dict(_OPS)``).
+    """
+    e = settings.economics
+    has_time_seg = (
+        (e.peak_hour_wage_multiplier != 1.0 and bool(e.peak_window_starts))
+        or (e.embargo_violation_penalty_per_visit != 0.0 and bool(e.embargo_window_starts))
+    )
+    if not has_time_seg and "shift_start" in ops_pool:
+        del ops_pool["shift_start"]
+    has_class_axis = (
+        (len(e.vehicle_class_capacities) > 0
+         and (any(p != 0 for p in e.vehicle_class_fixed_premiums)
+              or any(p != 0 for p in e.vehicle_class_per_mile_premiums)))
+        or e.skill_mismatch_penalty_per_visit != 0.0
+    )
+    if not has_class_axis and "class_shift" in ops_pool:
+        del ops_pool["class_shift"]
+    has_multi_depot = inst.depots is not None and len(inst.depots) > 1
+    if not has_multi_depot and "depot_shift" in ops_pool:
+        del ops_pool["depot_shift"]
+    # iter-7-v4-stack16-fix: register split_route only when a per-route
+    # cost term is active. Without one, splitting a route always increases
+    # cost (more depot-trips) -- the operator would no-op and waste bandit
+    # iterations on a dead arm.
+    has_per_route_cap = (
+        (e.driving_max_minutes > 0.0 and e.break_violation_penalty_per_min > 0.0)
+        or (e.shift_max_minutes > 0.0 and e.shift_overrun_penalty_per_min > 0.0)
+        or (e.vehicle_range_miles > 0.0 and e.range_violation_penalty_per_mile > 0.0)
+    )
+    if not has_per_route_cap and "split_route" in ops_pool:
+        del ops_pool["split_route"]
+    return ops_pool
+
 
 _OPS = {
     "merge_routes":   lambda i, s, c, t: merge_routes(i, s, c, max_seconds=t),
@@ -65,6 +133,26 @@ _OPS = {
     # (two consecutive customers) and re-insert. Cheaper than destroy_island,
     # more surgical than drop_route.
     "drop_leg":       lambda i, s, c, t: drop_leg(i, s, c, max_seconds=t),
+    # iter-5w-bis -- shift_route_start operator. Targets per-segment-of-time
+    # cost terms (peak_hour, embargo) by adjusting per-route start_offset.
+    # Bit-identical when no per-time-segment terms are active (each candidate
+    # offset evaluates to the same cost without those terms).
+    "shift_start":    lambda i, s, c, t: shift_route_start(i, s, c, max_seconds=t),
+    # iter-6a-7-bis -- class_shift operator. Targets mixed_fleets + skills
+    # cost terms by explicitly assigning per-route vehicle_class_idx. Lets
+    # the bandit upgrade routes to high-skill / large classes deliberately.
+    # Bit-identical when mixed_fleets / skills are off.
+    "class_shift":    lambda i, s, c, t: class_shift(i, s, c, max_seconds=t),
+    # iter-6a-5-bis -- depot_shift operator. Targets multi_depot routing by
+    # explicitly assigning per-route depot_idx. No-op when inst.depots is
+    # None or len <= 1. Completes the meta-recipe trilogy.
+    "depot_shift":    lambda i, s, c, t: depot_shift(i, s, c, max_seconds=t),
+    # iter-7-v4-stack16-fix -- split_route: inverse of merge_routes.
+    # Splits a long route (at midpoint or largest TW gap) into two when
+    # a per-route cost term (driver_breaks/shift_overrun/EV_range) makes
+    # one long route more expensive than two shorter ones. Conditionally
+    # registered in _filter_ops_pool (no-op when no per-route cap active).
+    "split_route":    lambda i, s, c, t: split_route(i, s, c, max_seconds=t),
 }
 
 
@@ -156,7 +244,40 @@ def solve(inst: Instance, settings: Settings,
           # eps-greedy/tie-break RNG and SISR's internal RNG. Required
           # for the composability bench to compare baseline-vs-augmented
           # at zero exploration-variance noise.
-          seed: int = 0) -> Solution:
+          seed: int = 0,
+          # SPEC-WEBUI-02 — optional callback fired on every accepted move
+          # (improvement > 1e-6). Signature:
+          #     on_accept(op_name: str, improvement: float,
+          #               ops_applied: int, new_sol: Solution) -> None
+          # Bench scripts use this to push live snapshots to the web UI.
+          # Callback failures are swallowed so they cannot tank the solve.
+          on_accept=None,
+          # Phase D3-D5 — bandit replacement / reward shaping switches.
+          # bandit_kind: "linucb" (default) | "logging" | "mlp"
+          #   - "linucb": current LinUCBBandit (unchanged behaviour)
+          #   - "logging": LoggingBandit wrapping LinUCB; transitions
+          #                appended to a per-call buffer; flush_path can
+          #                be set on the bandit by the caller via the
+          #                returned `bandit_history` workflow or by
+          #                patching `LoggingBandit.flush_path`.
+          #   - "mlp": MLPBanditPolicy.load(policy_artifact). Requires
+          #           policy_artifact != None.
+          # shape_reward: when True, apply Phase D4 shaping (island
+          #   disposal, isolated-stop disposal, leg shrinkage) to the
+          #   reward signal sent to the bandit. Default False = no
+          #   behavior change vs the pre-D4 code path.
+          bandit_kind: str = "linucb",
+          policy_artifact: str | None = None,
+          shape_reward: bool = False,
+          shape_coefs: dict | None = None,
+          # iter-5g — quality-aware bandit reward. When > 0, accepted
+          # moves contribute (q_after - q_before) * 100.0 to the reward
+          # in addition to the cost-improvement-per-second term. Default
+          # 0.0 preserves bit-identical legacy behaviour. The 100.0 scale
+          # treats a +0.10 quality bump as worth +$10 of cost
+          # improvement, so a 0.5 weight is roughly cost-parity at
+          # +0.20 quality lift.
+          quality_weight: float = 0.0) -> Solution:
     """Bandit-driven solve.  Construction = auction_gart's tier-1/2/3 bid loop
     (without its fixed improvement chain), then LinUCB rolls operators
     until budget exhausted or `plateaus_to_stop` non-improving picks in a row.
@@ -186,7 +307,7 @@ def solve(inst: Instance, settings: Settings,
     # SPEC-8-COUNCIL-02: merge any extra arms into the operator pool. Council
     # operators (sol, ctx) -> Sol|None are auto-adapted; portfolio-shape ops
     # pass through unchanged.
-    ops_pool = dict(_OPS)
+    ops_pool = _filter_ops_pool(dict(_OPS), settings, inst)
     # Override SISR with the caller-controlled seed so paired baseline/
     # augmented runs share SISR RNG and only differ in the augmented arm.
     ops_pool["sisr"] = lambda i, s, c, t, _seed=seed: sisr_destroy_repair(
@@ -200,8 +321,31 @@ def solve(inst: Instance, settings: Settings,
                 ops_pool[name] = _council_to_portfolio_op(fn)
             else:
                 ops_pool[name] = fn
-    bandit = LinUCBBandit(ops=list(ops_pool.keys()), feature_dim=FEATURE_DIM,
-                          alpha=alpha, seed=seed)
+    # Phase D3-D5 — dispatch on bandit_kind.
+    if bandit_kind == "linucb":
+        bandit = LinUCBBandit(ops=list(ops_pool.keys()), feature_dim=FEATURE_DIM,
+                              alpha=alpha, seed=seed)
+    elif bandit_kind == "logging":
+        from svrptw.solvers.learning.logging_bandit import LoggingBandit
+        bandit = LoggingBandit(ops=list(ops_pool.keys()), feature_dim=FEATURE_DIM,
+                               alpha=alpha, seed=seed)
+    elif bandit_kind == "mlp":
+        if policy_artifact is None:
+            raise ValueError("bandit_kind='mlp' requires policy_artifact path.")
+        from svrptw.solvers.learning.policy_mlp import MLPBanditPolicy
+        bandit = MLPBanditPolicy.load(policy_artifact, ops=list(ops_pool.keys()))
+    else:
+        raise ValueError(
+            f"unknown bandit_kind={bandit_kind!r}; expected "
+            "'linucb' | 'logging' | 'mlp'."
+        )
+    # Phase D3 — expose the bandit instance via a module-level slot so
+    # bench scripts (collect_bandit_logs.py) can grab transitions after
+    # the call returns. Public consumers should use bandit_kind="logging"
+    # and read pm._LAST_BANDIT.transitions(); kept private to avoid
+    # accidental coupling.
+    global _LAST_BANDIT
+    _LAST_BANDIT = bandit
     plateaus = 0
     ops_applied = 0
     basin_jumps_used = 0
@@ -209,6 +353,17 @@ def solve(inst: Instance, settings: Settings,
     best_cost = sol.metrics["operational_cost"]
     history: list[tuple[str, float]] = []
     deadline = t0 + budget_seconds
+    # iter-5g — quality-aware reward shaping. q_before is cached and
+    # only recomputed when a move is accepted (sol pointer changes).
+    # quality_weight=0 short-circuits the score_solution() call so the
+    # legacy code path is bit-identical.
+    qw = float(quality_weight)
+    if qw > 0.0:
+        from svrptw.metrics import score_solution as _qsol
+        q_before_cached = float(_qsol(inst, sol).quality_index)
+    else:
+        _qsol = None  # type: ignore[assignment]
+        q_before_cached = 0.0
 
     while time.perf_counter() < deadline and plateaus < plateaus_to_stop:
         ctx = featurize(inst, sol, greedy_cost=greedy_cost,
@@ -229,16 +384,56 @@ def solve(inst: Instance, settings: Settings,
         improvement = cost_before - cost_after
         # Reward shaped as $/s improvement, clipped so a 0.5s exploration
         # doesn't dominate the linear posterior.
-        reward = max(-100.0, min(200.0, improvement / max(elapsed, 1e-3)))
+        # iter-5g — when quality_weight>0, fold a $-scaled quality delta
+        # into the numerator BEFORE the throughput division. We only
+        # need q_after when the op is accepted (sol changes); for
+        # rejected ops sol == new_sol so delta_q is 0.
+        base_numer = improvement
+        if qw > 0.0 and improvement > 1e-6:
+            try:
+                q_after = float(_qsol(inst, new_sol).quality_index)
+            except Exception:
+                q_after = q_before_cached
+            delta_q_dollars = (q_after - q_before_cached) * 100.0
+            base_numer = improvement + qw * delta_q_dollars
+            # Defer cache update until after the accept-path so we can
+            # feed it forward only when sol pointer actually moves.
+            _q_after_pending = q_after
+        else:
+            _q_after_pending = None
+        base_reward = max(-100.0, min(200.0, base_numer / max(elapsed, 1e-3)))
+        # Phase D4 — optional shaped reward (no behavior change when
+        # shape_reward=False; the reward sent to bandit.update is
+        # bit-identical to the pre-D4 code path).
+        if shape_reward:
+            from svrptw.solvers.learning.reward_shaping import (
+                shaped_reward_terms,
+                total_shaped_reward,
+            )
+            terms = shaped_reward_terms(inst, sol, new_sol, settings)
+            reward = total_shaped_reward(base_reward, terms, shape_coefs)
+        else:
+            reward = base_reward
         bandit.update(op_name, ctx, reward)
         history.append((op_name, improvement))
         ops_applied += 1
         if improvement > 1e-6:
             sol = new_sol
             plateaus = 0
+            # iter-5g — slide q_before forward only on accept so the
+            # next op compares against the new basin's quality.
+            if qw > 0.0 and _q_after_pending is not None:
+                q_before_cached = _q_after_pending
             if cost_after < best_cost:
                 best_sol = new_sol
                 best_cost = cost_after
+            # SPEC-WEBUI-02 — fire the live-snapshot hook on accepted moves
+            # only. Failures here must not crash the solve.
+            if on_accept is not None:
+                try:
+                    on_accept(op_name, float(improvement), ops_applied, new_sol)
+                except Exception:
+                    pass
         else:
             plateaus += 1
 

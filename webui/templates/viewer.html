@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WorldsFinestVRP -- snapshot viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg: #0f1115; --panel: #161a22; --border: #2b313d;
+      --fg: #e6e9ef; --mute: #97a3b6; --ok: #6ee7b7; --warn: #fbbf24; --bad: #f87171;
+      --accent: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+                 font: 13px/1.45 ui-monospace, "JetBrains Mono", Consolas, monospace; }
+    header { padding: 10px 14px; border-bottom: 1px solid var(--border);
+             display: flex; align-items: center; justify-content: space-between; }
+    header h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .04em; }
+    header a { color: var(--accent); text-decoration: none; }
+    main { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px;
+           height: calc(100vh - 130px); }
+    .pane { background: var(--panel); border: 1px solid var(--border);
+            border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+    .pane-head { display: flex; align-items: center; gap: 8px;
+                 font-size: 12px; color: var(--mute); }
+    .pane-head select { background: #0b0d12; color: var(--fg);
+                        border: 1px solid var(--border); border-radius: 4px;
+                        padding: 4px 6px; font: inherit; flex: 1; }
+    .pane-img-wrap { flex: 1; background: #000; border-radius: 4px;
+                     display: flex; align-items: center; justify-content: center;
+                     overflow: hidden; min-height: 200px; }
+    .pane-img-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; }
+    .pane-img-wrap .empty { color: var(--mute); font-size: 12px; }
+    .pane-meta { font-size: 11px; color: var(--mute); display: flex;
+                 justify-content: space-between; }
+</style>
+</head>
+<style>
+    .controls { padding: 6px 14px; border-top: 1px solid var(--border);
+                display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+                background: var(--panel); }
+    .controls button { background: #0b0d12; color: var(--fg);
+                       border: 1px solid var(--border); border-radius: 4px;
+                       padding: 4px 10px; font: inherit; cursor: pointer; }
+    .controls button:hover { border-color: var(--accent); color: var(--accent); }
+    .controls button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .frame-info { color: var(--mute); font-size: 12px; min-width: 90px;
+                  text-align: center; }
+    .play.on { color: var(--ok); border-color: var(--ok); }
+    .hint { color: var(--mute); font-size: 11px; margin-left: auto; }
+  </style>
+<body>
+  <header>
+    <h1>WORLDS FINEST VRP -- snapshot viewer</h1>
+    <div><a href="/">&larr; back to dashboard</a></div>
+  </header>
+  <main>
+    <section class="pane" data-side="A">
+      <div class="pane-head">
+        <span>A:</span>
+        <select id="streamA"></select>
+      </div>
+      <div class="pane-img-wrap" id="wrapA"><span class="empty">no snapshots</span></div>
+      <div class="pane-meta" id="metaA"></div>
+    </section>
+    <section class="pane" data-side="B">
+      <div class="pane-head">
+        <span>B:</span>
+        <select id="streamB"></select>
+      </div>
+      <div class="pane-img-wrap" id="wrapB"><span class="empty">no snapshots</span></div>
+      <div class="pane-meta" id="metaB"></div>
+    </section>
+  </main>
+  <div class="controls">
+    <button id="prev" title="previous frame (left arrow)">&larr; prev</button>
+    <button id="next" title="next frame (right arrow)">next &rarr;</button>
+    <button id="play" class="play" title="play/pause (space)">&#9654; play</button>
+    <span class="frame-info" id="frame">0 / 0</span>
+    <button id="syncFollow" title="lock both panes to last frame">follow latest</button>
+    <span class="hint">arrows step &middot; space toggle play</span>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const PANES = ["A", "B"];
+    // Per-pane state.
+    const state = {
+      streams: {},        // {streamName: [snap, ...]}  -- newest last
+      stream_order: [],   // streams sorted by max ts desc
+      pane: {
+        A: { stream: null, frame: 0 },
+        B: { stream: null, frame: 0 },
+      },
+      playing: false,
+      followLatest: true,
+    };
+    let playTimer = null;
+    let userSelectedA = false, userSelectedB = false;
+
+    function fmtAge(ts) {
+      const d = Math.max(0, (Date.now()/1000) - ts);
+      if (d < 60) return d.toFixed(1) + "s ago";
+      if (d < 3600) return (d/60).toFixed(1) + "m ago";
+      return (d/3600).toFixed(1) + "h ago";
+    }
+
+    function updateStreamSelect(side) {
+      const sel = $("stream" + side);
+      const cur = state.pane[side].stream;
+      const opts = state.stream_order.map(n => {
+        const sel = (n === cur) ? " selected" : "";
+        const cnt = (state.streams[n] || []).length;
+        return `<option value="${n}"${sel}>${n} (${cnt})</option>`;
+      }).join("");
+      sel.innerHTML = opts || "<option>(no streams)</option>";
+    }
+
+    function pickDefaultStreams() {
+      // First non-user-selected pane gets streams[0], second gets [1].
+      const order = state.stream_order;
+      if (!userSelectedA && order.length >= 1) state.pane.A.stream = order[0];
+      if (!userSelectedB && order.length >= 2) state.pane.B.stream = order[1];
+      else if (!userSelectedB && order.length >= 1) state.pane.B.stream = order[0];
+      // Validate: if a pane's selected stream was deleted, drop it.
+      for (const side of PANES) {
+        if (state.pane[side].stream && !state.streams[state.pane[side].stream]) {
+          state.pane[side].stream = order[0] || null;
+        }
+      }
+    }
+
+    function clampFrame(side) {
+      const st = state.pane[side];
+      const list = state.streams[st.stream] || [];
+      if (!list.length) { st.frame = 0; return; }
+      if (state.followLatest) {
+        st.frame = list.length - 1;
+      } else if (st.frame >= list.length) {
+        st.frame = list.length - 1;
+      } else if (st.frame < 0) {
+        st.frame = 0;
+      }
+    }
+
+    function renderPane(side) {
+      const st = state.pane[side];
+      const list = state.streams[st.stream] || [];
+      const wrap = $("wrap" + side);
+      const meta = $("meta" + side);
+      if (!list.length) {
+        wrap.innerHTML = "<span class='empty'>no snapshots</span>";
+        meta.textContent = "";
+        return;
+      }
+      const snap = list[st.frame];
+      const cost = snap.meta?.cost != null ? `cost=${(+snap.meta.cost).toFixed(1)}` : "";
+      wrap.innerHTML = `<img src="/snapshots/${snap.rel_path.replace(/^\/+/,'')}" alt="${snap.label}"/>`;
+      meta.innerHTML = `<span>${snap.label}</span><span>${fmtAge(snap.ts)} ${cost}</span>`;
+    }
+
+    function renderAll() {
+      pickDefaultStreams();
+      for (const side of PANES) {
+        updateStreamSelect(side);
+        clampFrame(side);
+        renderPane(side);
+      }
+      // Frame info uses pane A as the canonical index.
+      const list = state.streams[state.pane.A.stream] || [];
+      $("frame").textContent = list.length
+        ? `${state.pane.A.frame + 1} / ${list.length}`
+        : "0 / 0";
+    }
+
+    async function tick() {
+      try {
+        const r = await fetch("/status", {cache: "no-store"});
+        const s = await r.json();
+        state.streams = s.snapshots || {};
+        // Sort streams by their newest ts descending (most recent first).
+        const order = Object.keys(state.streams).map(name => {
+          const arr = state.streams[name] || [];
+          const maxTs = arr.length ? arr[arr.length - 1].ts : 0;
+          return { name, ts: maxTs };
+        }).sort((a, b) => b.ts - a.ts).map(x => x.name);
+        state.stream_order = order;
+        renderAll();
+      } catch (e) {
+        // Silent.
+      }
+    }
+    tick();
+    setInterval(tick, 1500);
+
+    // ---- controls ---------------------------------------------------
+    function step(delta) {
+      state.followLatest = false;
+      $("syncFollow").style.color = "";
+      for (const side of PANES) {
+        state.pane[side].frame += delta;
+      }
+      for (const side of PANES) clampFrame(side);
+      for (const side of PANES) renderPane(side);
+      const list = state.streams[state.pane.A.stream] || [];
+      $("frame").textContent = list.length
+        ? `${state.pane.A.frame + 1} / ${list.length}`
+        : "0 / 0";
+    }
+
+    function setPlaying(on) {
+      state.playing = on;
+      const btn = $("play");
+      btn.classList.toggle("on", on);
+      btn.innerHTML = on ? "&#10074;&#10074; pause" : "&#9654; play";
+      if (playTimer) { clearInterval(playTimer); playTimer = null; }
+      if (on) playTimer = setInterval(() => step(+1), 200);
+    }
+
+    $("prev").onclick = () => step(-1);
+    $("next").onclick = () => step(+1);
+    $("play").onclick = () => setPlaying(!state.playing);
+    $("syncFollow").onclick = () => {
+      state.followLatest = true;
+      $("syncFollow").style.color = "var(--ok)";
+      renderAll();
+    };
+    $("streamA").onchange = (e) => {
+      userSelectedA = true;
+      state.pane.A.stream = e.target.value;
+      state.pane.A.frame = 0;
+      renderAll();
+    };
+    $("streamB").onchange = (e) => {
+      userSelectedB = true;
+      state.pane.B.stream = e.target.value;
+      state.pane.B.frame = 0;
+      renderAll();
+    };
+
+    document.addEventListener("keydown", (e) => {
+      if (e.target.tagName === "SELECT") return;
+      if (e.key === "ArrowLeft") { step(-1); e.preventDefault(); }
+      else if (e.key === "ArrowRight") { step(+1); e.preventDefault(); }
+      else if (e.key === " ") { setPlaying(!state.playing); e.preventDefault(); }
+    });
+  </script>
+</body>
+</html>

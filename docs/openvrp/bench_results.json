@@ -1,0 +1,38 @@
+{
+  "rows": [
+    {
+      "n": 100,
+      "budget_s": 30.0,
+      "wall_s": 0.231,
+      "status": "feasible",
+      "K_used": 4,
+      "K_min": 4,
+      "objective": 394.23,
+      "route_crossings": 0.0,
+      "load_balance_cv": 0.181
+    },
+    {
+      "n": 500,
+      "budget_s": 30.0,
+      "wall_s": 0.457,
+      "status": "feasible",
+      "K_used": 15,
+      "K_min": 15,
+      "objective": 1135.96,
+      "route_crossings": 0.0,
+      "load_balance_cv": 0.064
+    },
+    {
+      "n": 1000,
+      "budget_s": 30.0,
+      "wall_s": 1.377,
+      "status": "feasible",
+      "K_used": 31,
+      "K_min": 31,
+      "objective": 1973.05,
+      "route_crossings": 0.0,
+      "load_balance_cv": 0.058
+    }
+  ],
+  "timestamp": "2026-05-16T15:00:00"
+}

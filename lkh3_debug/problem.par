@@ -1,0 +1,8 @@
+PROBLEM_FILE = C:\Users\catst\AppData\Local\Temp\lkh3_qqzdp6_c\problem.cvrptw
+MTSP_SOLUTION_FILE = C:\Users\catst\AppData\Local\Temp\lkh3_qqzdp6_c\tour.txt
+RUNS = 1
+TIME_LIMIT = 10
+TRACE_LEVEL = 0
+MTSP_OBJECTIVE = MINSUM
+MTSP_MIN_SIZE = 1
+VEHICLES = 30

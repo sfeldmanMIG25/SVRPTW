@@ -1,0 +1,47 @@
+{
+  "openvrp_native": {
+    "solver": "openvrp_native",
+    "wall": 0.23420120000082534,
+    "K": 9,
+    "obj": 662.42,
+    "crossings": 27,
+    "feasible": true,
+    "missed": 0
+  },
+  "openvrp_pyvrp": {
+    "solver": "openvrp_pyvrp",
+    "wall": 49.65393980000226,
+    "K": 8,
+    "obj": 578.58,
+    "crossings": 3,
+    "feasible": true,
+    "missed": 0
+  },
+  "pyvrp_standalone": {
+    "solver": "pyvrp_standalone",
+    "wall": 30.134135400003288,
+    "K": 8,
+    "obj": 576.48,
+    "crossings": 5,
+    "feasible": true,
+    "missed": 0
+  },
+  "ortools": {
+    "solver": "ortools",
+    "wall": 30.023482999997213,
+    "K": 8,
+    "obj": 599.57,
+    "crossings": 10,
+    "feasible": true,
+    "missed": 0
+  },
+  "svrptw_greedy": {
+    "solver": "svrptw_greedy",
+    "wall": 0.029622200003359467,
+    "K": 8,
+    "obj": 715.28,
+    "crossings": 50,
+    "feasible": true,
+    "missed": 0
+  }
+}

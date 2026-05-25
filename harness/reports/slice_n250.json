@@ -1,0 +1,111 @@
+{
+  "n": 250,
+  "results": [
+    {
+      "task_id": "N250-s0-openvrp_native",
+      "n": 250,
+      "seed": 0,
+      "solver": "openvrp_native",
+      "wall_s": 0.245,
+      "peak_rss_mb": 60.5,
+      "ok": true,
+      "quality": {
+        "objective": 662.42,
+        "n_routes": 9.0,
+        "served": 250.0,
+        "missed": 0.0,
+        "late_min": 0.0,
+        "overload": 0.0,
+        "route_crossings": 27.0,
+        "load_balance_cv": 0.239,
+        "feasible": 1.0
+      },
+      "error": ""
+    },
+    {
+      "task_id": "N250-s0-openvrp_pyvrp",
+      "n": 250,
+      "seed": 0,
+      "solver": "openvrp_pyvrp",
+      "wall_s": 51.603,
+      "peak_rss_mb": 126.0,
+      "ok": true,
+      "quality": {
+        "objective": 578.58,
+        "n_routes": 8.0,
+        "served": 250.0,
+        "missed": 0.0,
+        "late_min": 0.0,
+        "overload": 0.0,
+        "route_crossings": 3.0,
+        "load_balance_cv": 0.084,
+        "feasible": 1.0
+      },
+      "error": ""
+    },
+    {
+      "task_id": "N250-s0-pyvrp_standalone",
+      "n": 250,
+      "seed": 0,
+      "solver": "pyvrp_standalone",
+      "wall_s": 30.191,
+      "peak_rss_mb": 123.3,
+      "ok": true,
+      "quality": {
+        "objective": 576.48,
+        "n_routes": 8.0,
+        "served": 250.0,
+        "missed": 0.0,
+        "late_min": 0.0,
+        "overload": 0.0,
+        "route_crossings": 5.0,
+        "load_balance_cv": 0.073,
+        "feasible": 1.0
+      },
+      "error": ""
+    },
+    {
+      "task_id": "N250-s0-ortools",
+      "n": 250,
+      "seed": 0,
+      "solver": "ortools",
+      "wall_s": 30.023,
+      "peak_rss_mb": 145.0,
+      "ok": true,
+      "quality": {
+        "objective": 599.57,
+        "n_routes": 8.0,
+        "served": 250.0,
+        "missed": 0.0,
+        "late_min": 0.0,
+        "overload": 0.0,
+        "route_crossings": 10.0,
+        "load_balance_cv": 0.071,
+        "feasible": 1.0
+      },
+      "error": ""
+    },
+    {
+      "task_id": "N250-s0-svrptw_greedy",
+      "n": 250,
+      "seed": 0,
+      "solver": "svrptw_greedy",
+      "wall_s": 0.029,
+      "peak_rss_mb": 112.8,
+      "ok": true,
+      "quality": {
+        "objective": 715.28,
+        "n_routes": 8.0,
+        "served": 250.0,
+        "missed": 0.0,
+        "late_min": 0.0,
+        "overload": 0.0,
+        "route_crossings": 50.0,
+        "load_balance_cv": 0.203,
+        "feasible": 1.0
+      },
+      "error": ""
+    }
+  ],
+  "generated_at": "2026-05-16T16:18:01"
+}

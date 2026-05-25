@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "openvrp-dashboard",
+      "runtimeExecutable": "C:/Python311/python.exe",
+      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "D:/SVRPTW"],
+      "port": 8765
+    }
+  ]
+}

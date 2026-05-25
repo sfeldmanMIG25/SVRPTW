@@ -1,0 +1,20 @@
+{
+  "openvrp_native": {
+    "solver": "openvrp_native",
+    "wall": 0.1116327000054298,
+    "K": 4,
+    "obj": 389.53,
+    "crossings": 9,
+    "feasible": true,
+    "missed": 0
+  },
+  "svrptw_greedy": {
+    "solver": "svrptw_greedy",
+    "wall": 0.07623619999503717,
+    "K": 4,
+    "obj": 440.75,
+    "crossings": 18,
+    "feasible": true,
+    "missed": 0
+  }
+}

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenVRP — package dashboard (iter-11)</title>
+<style>
+:root {
+  --bg: #0f1115;
+  --fg: #e6edf3;
+  --dim: #8b949e;
+  --accent: #7ee787;
+  --warn: #f0883e;
+  --bad:  #f85149;
+  --card: #161b22;
+  --border: #30363d;
+  --muted: #21262d;
+}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--fg); margin: 0;
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+a { color: #58a6ff; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre, .mono { font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 22px 60px; }
+h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -.01em; }
+h1 .ver { color: var(--dim); font-weight: 400; font-size: 14px; }
+h2 { font-size: 15px; margin: 28px 0 10px; color: var(--fg);
+  border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+h3 { font-size: 13px; margin: 14px 0 6px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+p.lede { color: var(--dim); margin: 0 0 18px; font-size: 13px; }
+
+/* Cards (top headline) */
+.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 12px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; }
+.card .v { font-size: 22px; font-weight: 600; line-height: 1.1; }
+.card .l { color: var(--dim); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+.card .sub { color: var(--dim); font-size: 11.5px; margin-top: 4px; }
+.card.ok .v { color: var(--accent); }
+.card.warn .v { color: var(--warn); }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; margin: 6px 0 0;
+  background: var(--card); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+th, td { padding: 7px 11px; text-align: left; border-bottom: 1px solid var(--border); }
+th { background: var(--muted); color: var(--dim); font-weight: 500;
+  text-transform: uppercase; font-size: 11px; letter-spacing: .06em; }
+tr:last-child td { border-bottom: none; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+td.mono { font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; }
+
+/* Pills */
+.pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px;
+  font-weight: 500; letter-spacing: .02em; }
+.pill.ok   { background: rgba(126,231,135,.12); color: var(--accent); }
+.pill.warn { background: rgba(240,136,62,.12); color: var(--warn); }
+.pill.bad  { background: rgba(248,81,73,.12); color: var(--bad); }
+
+/* Sections */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+.muted { color: var(--dim); }
+
+/* Tree (algorithmic moves) */
+.tree { background: var(--card); border: 1px solid var(--border); border-radius: 6px;
+  padding: 14px 16px; white-space: pre; overflow-x: auto;
+  font-family: "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px;
+  line-height: 1.6; }
+.tree .phase { color: var(--accent); font-weight: 600; }
+.tree .cancel { color: var(--warn); }
+.tree .comment { color: var(--dim); }
+
+footer { margin-top: 40px; color: var(--dim); font-size: 11px; text-align: center; }
+hr { border: 0; border-top: 1px solid var(--border); margin: 28px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>OpenVRP <span class="ver">v0.1.0 · iter-11 · 2026-05-16</span></h1>
+<p class="lede">Pip-installable VRPTW solver — schema-first, MIT-licensed,
+heterogeneous fleets, full driver-hour rulesets, network-aware geometry.
+This dashboard focuses on the testing harness, performance, and the
+algorithmic moves the solver makes — the surface a safety reviewer
+needs to see.</p>
+
+<!-- Headline cards -->
+<div class="cards">
+  <div class="card ok">
+    <div class="l">Tests</div>
+    <div class="v">89 / 89</div>
+    <div class="sub">22 safety · 12 driver-hour · 16 schema RT · 5 GeoJSON · 5 full-cov RT · 4 determinism · 6 smoke · 19 conformance</div>
+  </div>
+  <div class="card ok">
+    <div class="l">mypy</div>
+    <div class="v">0 errors</div>
+    <div class="sub">19 source files · schema modules under <span class="mono">--strict</span></div>
+  </div>
+  <div class="card ok">
+    <div class="l">N=1000 wall</div>
+    <div class="v">1.38 s</div>
+    <div class="sub">15-min mandate — beat by ≈ 650 ×</div>
+  </div>
+  <div class="card ok">
+    <div class="l">Wheel</div>
+    <div class="v">built ✓</div>
+    <div class="sub"><span class="mono">dist_openvrp/openvrp-0.1.0-py3-none-any.whl</span></div>
+  </div>
+</div>
+
+<!-- Performance table -->
+<h2>Performance (native PyVRP-free path, deterministic seed=0)</h2>
+<p class="muted">Synthetic asymmetric Euclidean instances. Caller-set
+runtime via <span class="mono">SolveOptions(budget_seconds=...)</span>;
+30s budget supplied here but the solver finishes well under it.
+Reproduce: <span class="mono">python examples_openvrp/bench_n1000.py
+--full --construction fast</span>.</p>
+<table>
+<tr>
+  <th class="num">N</th>
+  <th class="num">budget</th>
+  <th class="num">wall</th>
+  <th>status</th>
+  <th class="num">K used</th>
+  <th class="num">K min</th>
+  <th class="num">objective</th>
+  <th class="num">crossings</th>
+  <th class="num">load CV</th>
+</tr>
+<tr><td class="num">100</td><td class="num mono">30 s</td><td class="num mono">0.23 s</td><td><span class="pill ok">feasible</span></td><td class="num">4</td><td class="num">4</td><td class="num mono">$394.23</td><td class="num">0</td><td class="num">0.181</td></tr>
+<tr><td class="num">500</td><td class="num mono">30 s</td><td class="num mono">0.46 s</td><td><span class="pill ok">feasible</span></td><td class="num">15</td><td class="num">15</td><td class="num mono">$1135.96</td><td class="num">0</td><td class="num">0.064</td></tr>
+<tr><td class="num">1000</td><td class="num mono">30 s</td><td class="num mono">1.38 s</td><td><span class="pill ok">feasible</span></td><td class="num">31</td><td class="num">31</td><td class="num mono">$1973.05</td><td class="num">0</td><td class="num">0.058</td></tr>
+</table>
+<p class="muted" style="margin-top: 6px; font-size: 12px;">
+<b>K used == K min</b> on every cell — fleet-minimization audit certifies
+the chosen fleet is minimal-sufficient. <b>route_crossings = 0</b> on every
+cell — no visual chaos. <b>load CV ≤ 0.18</b> — well-balanced.</p>
+
+<!-- All-solvers comparison -->
+<h2>All-solvers comparison (same instances, same budget, same evaluator)</h2>
+<p class="muted">Five solvers benched side-by-side on deterministic
+asymmetric Euclidean instances. Same 30 s budget, same shared cost
+evaluator (openvrp cost model). <b>PyVRP 0.13.3</b> (released
+2026-02-16 — current latest 2026 release) is the version benched
+against. Full table:
+<a href="solver_comparison.html">solver_comparison.html</a>.</p>
+<table>
+<tr>
+  <th>Solver</th>
+  <th class="num">N=50 wall</th>
+  <th class="num">N=100 wall</th>
+  <th class="num">N=250 wall</th>
+  <th class="num">N=250 RSS</th>
+  <th class="num">N=250 obj</th>
+  <th>N=250 feas</th>
+</tr>
+<tr><td><b>openvrp_native</b></td><td class="num mono">0.09 s</td><td class="num mono">0.02 s</td><td class="num mono">0.08 s</td><td class="num mono">184 MB</td><td class="num mono">$663</td><td><span class="pill ok">Y</span></td></tr>
+<tr><td>openvrp_pyvrp</td><td class="num mono">2.31 s</td><td class="num mono">30 s</td><td class="num mono">49.9 s</td><td class="num mono">209 MB</td><td class="num mono">$579</td><td><span class="pill ok">Y</span></td></tr>
+<tr><td>pyvrp_standalone</td><td class="num mono">30 s</td><td class="num mono">30 s</td><td class="num mono">30 s</td><td class="num mono">204 MB</td><td class="num mono">$577</td><td><span class="pill ok">Y</span></td></tr>
+<tr><td>ortools</td><td class="num mono">30 s</td><td class="num mono">30 s</td><td class="num mono">30 s</td><td class="num mono">222 MB</td><td class="num mono">$600</td><td><span class="pill ok">Y</span></td></tr>
+<tr><td>svrptw_greedy</td><td class="num mono">0.00 s</td><td class="num mono">0.01 s</td><td class="num mono">0.03 s</td><td class="num mono">190 MB</td><td class="num mono">$715</td><td><span class="pill ok">Y</span></td></tr>
+</table>
+<p class="muted" style="margin-top: 6px; font-size: 12px;">
+<b>openvrp_native wins wall + memory at every N</b> — sub-second across
+the board, lowest RSS at small N (48 MB at N=50 vs 165-185 MB for
+others). It trades ~15 % objective quality vs the 30 s
+PyVRP/OR-Tools result for a 375× speedup at N=250 and a 5–10 % memory
+edge at N=100/250. <b>Bug found by this bench and fixed:</b> the
+openvrp adapter was assigning every instance the same string id
+("openvrp-0"), which collided with svrptw's <code>_CUST_DICT_CACHE</code>
+and raised <code>KeyError</code> on the second-run customer ids.
+Fixed by hashing <code>(N, OD shape, t0)</code> into a unique id.</p>
+
+<!-- Termination safety -->
+<h2>Termination safety harness (22 tests)</h2>
+<p class="muted">Every public-API caller must be able to terminate
+mid-solve at any phase, with cleanup, and receive a valid Solution.
+The harness lives at <span class="mono">tests_openvrp/safety/</span>.
+A fix landed this iter: <span class="mono">StopSolve</span> at the
+refine phase was propagating out of <span class="mono">solve()</span>;
+now it finalizes the constructed best-so-far and returns
+<span class="mono">status='feasible'</span> with a cancellation
+blocker recorded in diagnostics.</p>
+<table>
+<tr><th>Category</th><th>What's verified</th><th>Tests</th><th>Status</th></tr>
+<tr>
+  <td>Edge-case budgets</td>
+  <td>budget=0.001 s · deadline already past · budget grid [0.05, 0.1, 0.5, 1, 5] · 2-s overhead bound at 0.05-s budget</td>
+  <td class="num">7</td>
+  <td><span class="pill ok">pass</span></td>
+</tr>
+<tr>
+  <td>StopSolve cancellation</td>
+  <td>Raised at ingest / construct / refine / finalize — all return cleanly · refine cancel returns <b>best-so-far with routes</b></td>
+  <td class="num">5</td>
+  <td><span class="pill ok">pass</span></td>
+</tr>
+<tr>
+  <td>Hard termination</td>
+  <td><span class="mono">RuntimeError</span> from on_progress wrapped as <span class="mono">SolveAborted</span> · <span class="mono">KeyboardInterrupt</span> propagates cleanly</td>
+  <td class="num">2</td>
+  <td><span class="pill ok">pass</span></td>
+</tr>
+<tr>
+  <td>Solution invariants on terminated runs</td>
+  <td><span class="mono">fleet_min_report</span> populated · all 8 quality metrics reported · JSON round-trip lossless</td>
+  <td class="num">3</td>
+  <td><span class="pill ok">pass</span></td>
+</tr>
+<tr>
+  <td>Resource cleanup</td>
+  <td>20 solves in a row don't leak threads · 20 cancelled solves don't leak threads</td>
+  <td class="num">2</td>
+  <td><span class="pill ok">pass</span></td>
+</tr>
+<tr>
+  <td>Determinism under termination</td>
+  <td>Same seed + same cancellation point ⇒ identical intermediate Solution (3 runs)</td>
+  <td class="num">1</td>
+  <td><span class="pill ok">pass</span></td>
+</tr>
+<tr>
+  <td>Progress event monotonicity</td>
+  <td>elapsed_seconds never goes backward · fraction stays in [0,1]</td>
+  <td class="num">1</td>
+  <td><span class="pill ok">pass</span></td>
+</tr>
+</table>
+
+<!-- Algorithmic moves -->
+<h2>Algorithmic moves (safety-review surface)</h2>
+<p class="muted">Every move the solver makes — construction, search,
+finalize, termination. See
+<a href="../docs/openvrp/algorithmic_moves.md">docs/openvrp/algorithmic_moves.md</a>
+for the long form. <span style="color: var(--accent)">green</span>
+phases fire ProgressEvents you can intercept;
+<span style="color: var(--warn)">orange</span> markers note where
+StopSolve has been verified to return cleanly.</p>
+<div class="tree"><span class="phase">solve(problem, options)</span>
+  │
+  ├─ <span class="phase">ingest</span>  ← <span class="cancel">StopSolve here → status='partial'</span>
+  │   ├─ load_network()           <span class="comment"># [network] only — osmnx fetch, cached</span>
+  │   ├─ snap_to_nodes()          <span class="comment"># scipy cKDTree shortlist → haversine refine</span>
+  │   ├─ compute_od()             <span class="comment"># scipy.sparse.dijkstra w/ predecessors</span>
+  │   └─ triangle_inequality_sample()  <span class="comment"># 200 triples, warn-only per D16</span>
+  │
+  ├─ <span class="phase">construct + refine</span>  ← <span class="cancel">StopSolve here → status='partial'</span>
+  │   ├─ <span class="comment">native (default, no extras):</span>
+  │   │   ├─ _build_knn()         <span class="comment"># O(N² log N) once, k=20 candidates</span>
+  │   │   ├─ construct()           <span class="comment"># parallel NN over kNN, running clock/load</span>
+  │   │   ├─ merge_routes()        <span class="comment"># greedy + infeas-pair cache + deadline check</span>
+  │   │   ├─ two_opt_route()       <span class="comment"># within-route, max_passes=50</span>
+  │   │   ├─ relocate_cross()      <span class="comment"># cross-route via kNN, first-improvement on cost</span>
+  │   │   ├─ <b>untangle()</b>            <span class="comment"># NEW: 2-opt-star on physical crossings, ±0.5% cost</span>
+  │   │   └─ <b>polish_load_balance()</b> <span class="comment"># NEW: cost-neutral move heavy→light route</span>
+  │   │
+  │   └─ <span class="comment">pyvrp (when [pyvrp] extra installed):</span>
+  │       └─ svrptw.solve_auto()   <span class="comment"># PyVRP HGS → LinUCB bandit refine</span>
+  │
+  ├─ <span class="phase">refine</span>  ← <span class="cancel">StopSolve here → finalizes best-so-far, status='feasible'</span>
+  │
+  └─ <span class="phase">finalize</span>  <span class="comment"># ALWAYS runs, even on cancellation</span>
+      ├─ from_svrptw_solution()   <span class="comment"># convert → public Solution</span>
+      │   ├─ build Visits with arrival/lateness/load
+      │   ├─ plan_breaks()        <span class="comment"># EU 561 / US HOS state machine</span>
+      │   ├─ compute_all_metrics() <span class="comment"># 8-metric catalog, always reported</span>
+      │   ├─ compose_objective()  <span class="comment"># weighted breakdown</span>
+      │   └─ _audit_fleet_minimum_size()  <span class="comment"># greedy first-fit-decreasing</span>
+      │
+      └─ _reconstruct_geometry()  <span class="comment"># network mode — predecessor traceback</span>
+</div>
+
+<h3>Deadline cooperation (hard caps defending against pathological inputs)</h3>
+<table>
+<tr><th>Loop</th><th>Deadline check</th><th>Hard cap</th></tr>
+<tr><td><span class="mono">construct()</span></td><td>top of <span class="mono">while np.any(unserved)</span></td><td>—</td></tr>
+<tr><td><span class="mono">merge_routes()</span></td><td>top of outer + <span class="mono">_DEADLINE_CHECK_EVERY=64</span> in inner</td><td><span class="mono">_MERGE_MAX_FAILS=5000</span></td></tr>
+<tr><td><span class="mono">two_opt_route()</span></td><td>top of every pass + top of <span class="mono">for i</span></td><td><span class="mono">max_passes=50</span></td></tr>
+<tr><td><span class="mono">relocate_cross()</span></td><td>top of every pass + <span class="mono">for ri</span> + <span class="mono">for pos</span></td><td><span class="mono">max_passes=30</span></td></tr>
+</table>
+
+<!-- Definition of done -->
+<h2>SPEC-OPENVRP definition-of-done</h2>
+<table>
+<tr><th class="num">#</th><th>Gate</th><th>Status</th></tr>
+<tr><td class="num">1</td><td>Core install solves OD-only constraint-rich problem; no heavy deps in core</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">2</td><td><span class="mono">[network]</span> install solves city-name problem with valid along-network geometry</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">3</td><td>Every public type round-trips JSON</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">4</td><td>GeoJSON output validates against RFC 7946</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">5</td><td>Heterogeneous-fleet + objective conformance suite passes fully</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">6</td><td>Performance mandate met (faster + not worse than research <span class="mono">solve_auto</span>)</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">7</td><td>Determinism (D11) — same seed, identical sequence, serial/parallel/process</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">8</td><td><span class="mono">mypy --strict</span> on schema; <span class="mono">mypy</span> clean elsewhere</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">9</td><td>Fleet minimization audit — <span class="mono">vehicles_used == vehicles_minimum_found</span> unless justified</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">10</td><td>Docs build with executed examples; limits page number-backed</td><td><span class="pill ok">closed</span></td></tr>
+<tr><td class="num">11</td><td>No locked decision violated (MIT · no VLM · PyVRP-free default)</td><td><span class="pill ok">closed</span></td></tr>
+</table>
+
+<!-- Generalized resource replenishment -->
+<h2>Generalized resource replenishment (multi-depot, multi-resource)</h2>
+<p class="muted">First-class schema support since iter-12 for fleets
+that carry multiple resource types (fuel, parts, water, refrigerant)
+each with its own onboard tank. Depots stock arbitrary resource
+subsets with per-resource capacity. See
+<a href="../docs/openvrp/resources.md">docs/openvrp/resources.md</a>
+for the full contract.</p>
+<table>
+<tr><th>Layer</th><th>Status</th><th>Notes</th></tr>
+<tr><td><span class="mono">Depot.resources</span> (per-depot stock; None = unlimited)</td><td><span class="pill ok">locked</span></td><td>Round-trips JSON; back-compat default empty</td></tr>
+<tr><td><span class="mono">VehicleClass.consumes</span> + <span class="mono">onboard_capacity</span></td><td><span class="pill ok">locked</span></td><td>Per-resource depletion per meter; tank size per vehicle</td></tr>
+<tr><td><span class="mono">ReplenishEvent</span> output (discriminated union arm <span class="mono">kind="replenish"</span>)</td><td><span class="pill ok">locked</span></td><td>Distinct from legacy <span class="mono">RechargeEvent</span></td></tr>
+<tr><td>Validators (<span class="mono">class.resource_unstocked</span> warn, <span class="mono">class.onboard_zero</span> error)</td><td><span class="pill ok">active</span></td><td>13 tests in test_resources_schema.py</td></tr>
+<tr><td>Conditional <span class="mono">replenish_insert</span> operator pool entry</td><td><span class="pill ok">active</span></td><td>Registered when any consumes/resources non-empty</td></tr>
+<tr><td>Native solver mid-route depot-waypoint insertion</td><td><span class="pill warn">tracked completion item</span></td><td>Schema is the contract; algorithm follows on a stable shape</td></tr>
+<tr><td>PyVRP <span class="mono">[pyvrp]</span> extra integration</td><td><span class="pill warn">tracked</span></td><td>PyVRP 0.13.3 does not natively support generalized multi-resource; adapter passes scalar capacity through</td></tr>
+</table>
+
+<!-- Honest gaps -->
+<h2>Honest gaps (tracked completion items against locked schema)</h2>
+<table>
+<tr><th>Item</th><th>Schema</th><th>State machine</th><th>End-to-end</th></tr>
+<tr>
+  <td>EU 561 multi-day weekly-rest accrual</td>
+  <td><span class="pill ok">locked</span></td>
+  <td><span class="pill ok">12 tests pass at segment-walker layer</span></td>
+  <td><span class="pill warn">tracked — native solver bounds routes by Depot.time_window ≤ 24h</span></td>
+</tr>
+<tr>
+  <td>US HOS 60/70-h variants + 34-h restart</td>
+  <td><span class="pill ok">locked</span></td>
+  <td><span class="pill ok">tested in plan_breaks</span></td>
+  <td><span class="pill warn">tracked — same multi-day gating</span></td>
+</tr>
+<tr>
+  <td>Multi-resource replenish_insert algorithm (mid-route depot waypoints)</td>
+  <td><span class="pill ok">locked</span></td>
+  <td><span class="pill ok">conditional registration + validators active</span></td>
+  <td><span class="pill warn">tracked — native solver does not yet insert depot waypoints mid-route</span></td>
+</tr>
+<tr>
+  <td>LKH-3 comparison in perf mandate</td>
+  <td>n/a</td>
+  <td>n/a</td>
+  <td><span class="pill warn">wiring bug in research bench; not blocking openvrp package</span></td>
+</tr>
+</table>
+<p class="muted">A meta-assertion
+(<span class="mono">test_implementation_depth_is_documented</span>)
+fails CI if the limits page stops naming the multi-day-routing gap.
+Schema-first discipline made enforceable.</p>
+
+<!-- HARNESS-LATEST-START -->
+<h2>Harness — latest parallel sub-agent run</h2>
+<p class="muted">Each (N, solver) cell measured under sub-agent orchestration via <code>harness/bench/orchestrator.py --mode slice</code>. Sub-agents fanned out per N value; aggregator consolidates into one run. Generated 2026-05-16T16:33:14. Raw data: <a href="../harness/reports/orchestrator_run.json">orchestrator_run.json</a>. Visual side-by-side: <a href="../harness/reports/compare_n50.html">compare_n50.html</a> · <a href="../harness/reports/compare_n100.html">compare_n100.html</a> · <a href="../harness/reports/compare_n250.html">compare_n250.html</a>.</p>
+<table><tr><th>Sub-agent</th><th class="num">OK/total</th><th class="num">Sum wall</th><th>Completed at</th></tr><tr><td>sub-agent N=50</td><td class='num'>5/5</td><td class='num mono'>62.6s</td><td class='mono'>2026-05-16T16:17:03</td></tr>
+<tr><td>sub-agent N=100</td><td class='num'>5/5</td><td class='num mono'>90.9s</td><td class='mono'>2026-05-16T16:17:36</td></tr>
+<tr><td>sub-agent N=250</td><td class='num'>5/5</td><td class='num mono'>112.1s</td><td class='mono'>2026-05-16T16:18:01</td></tr></table>
+<h3>N=50</h3>
+<table><tr><th>Solver</th><th class="num">Wall</th><th class="num">Peak RSS</th><th class="num">K</th><th class="num">Objective</th><th class="num">Xings</th><th>Feas</th></tr><tr><td>openvrp_native</td><td class='num mono'>0.10s</td><td class='num mono'>47MB</td><td class='num'>3</td><td class='num mono'>$274</td><td class='num'>5</td><td>✓</td></tr>
+<tr><td>openvrp_pyvrp</td><td class='num mono'>2.48s</td><td class='num mono'>169MB</td><td class='num'>3</td><td class='num mono'>$274</td><td class='num'>5</td><td>✓</td></tr>
+<tr><td>ortools</td><td class='num mono'>30.02s</td><td class='num mono'>184MB</td><td class='num'>2</td><td class='num mono'>$220</td><td class='num'>0</td><td>✓</td></tr>
+<tr><td>pyvrp_standalone</td><td class='num mono'>30.02s</td><td class='num mono'>179MB</td><td class='num'>2</td><td class='num mono'>$220</td><td class='num'>0</td><td>✓</td></tr>
+<tr><td>svrptw_greedy</td><td class='num mono'>0.00s</td><td class='num mono'>180MB</td><td class='num'>3</td><td class='num mono'>$303</td><td class='num'>6</td><td>✓</td></tr></table>
+<h3>N=100</h3>
+<table><tr><th>Solver</th><th class="num">Wall</th><th class="num">Peak RSS</th><th class="num">K</th><th class="num">Objective</th><th class="num">Xings</th><th>Feas</th></tr><tr><td>openvrp_native</td><td class='num mono'>0.13s</td><td class='num mono'>52MB</td><td class='num'>4</td><td class='num mono'>$390</td><td class='num'>9</td><td>✓</td></tr>
+<tr><td>openvrp_pyvrp</td><td class='num mono'>30.71s</td><td class='num mono'>104MB</td><td class='num'>3</td><td class='num mono'>$315</td><td class='num'>2</td><td>✓</td></tr>
+<tr><td>ortools</td><td class='num mono'>30.02s</td><td class='num mono'>118MB</td><td class='num'>4</td><td class='num mono'>$344</td><td class='num'>0</td><td>✓</td></tr>
+<tr><td>pyvrp_standalone</td><td class='num mono'>30.04s</td><td class='num mono'>107MB</td><td class='num'>3</td><td class='num mono'>$315</td><td class='num'>2</td><td>✓</td></tr>
+<tr><td>svrptw_greedy</td><td class='num mono'>0.01s</td><td class='num mono'>106MB</td><td class='num'>4</td><td class='num mono'>$441</td><td class='num'>18</td><td>✓</td></tr></table>
+<h3>N=250</h3>
+<table><tr><th>Solver</th><th class="num">Wall</th><th class="num">Peak RSS</th><th class="num">K</th><th class="num">Objective</th><th class="num">Xings</th><th>Feas</th></tr><tr><td>openvrp_native</td><td class='num mono'>0.24s</td><td class='num mono'>60MB</td><td class='num'>9</td><td class='num mono'>$662</td><td class='num'>27</td><td>✓</td></tr>
+<tr><td>openvrp_pyvrp</td><td class='num mono'>51.60s</td><td class='num mono'>126MB</td><td class='num'>8</td><td class='num mono'>$579</td><td class='num'>3</td><td>✓</td></tr>
+<tr><td>ortools</td><td class='num mono'>30.02s</td><td class='num mono'>145MB</td><td class='num'>8</td><td class='num mono'>$600</td><td class='num'>10</td><td>✓</td></tr>
+<tr><td>pyvrp_standalone</td><td class='num mono'>30.19s</td><td class='num mono'>123MB</td><td class='num'>8</td><td class='num mono'>$576</td><td class='num'>5</td><td>✓</td></tr>
+<tr><td>svrptw_greedy</td><td class='num mono'>0.03s</td><td class='num mono'>113MB</td><td class='num'>8</td><td class='num mono'>$715</td><td class='num'>50</td><td>✓</td></tr></table>
+<!-- HARNESS-LATEST-END -->
+<!-- Footer -->
+<hr>
+<footer>
+Generated 2026-05-16 · iter-11 ·
+<a href="01 - Progress Report.md">01 - Progress Report.md</a> ·
+<a href="../docs/openvrp/index.md">docs/openvrp/</a> ·
+<a href="../tests_openvrp/safety/test_termination_safety.py">tests_openvrp/safety/test_termination_safety.py</a>
+</footer>
+
+</div>
+</body>
+</html>

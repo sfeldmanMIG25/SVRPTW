@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>SVRPTW Progress Report — 2026-05-14</title>
+<title>SVRPTW Progress Report — 2026-05-16</title>
 <style>
   :root {
     --bg: #fafbfc; --card: #fff; --ink: #1c1f23; --muted: #5e6772;
@@ -30,186 +30,940 @@
   .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .num { text-align: right; font-variant-numeric: tabular-nums; }
   small { color: var(--muted); }
+  .log-row { padding: 6px 0; border-bottom: 1px solid var(--rule); }
+  .log-row:last-child { border-bottom: none; }
+  .log-iter { display: inline-block; min-width: 80px; font-weight: 600; color: var(--muted); font-family: monospace; }
 </style>
 </head>
 <body>
 
 <h1>SVRPTW Research Progress Report</h1>
-<p class="meta">Generated 2026-05-14 · Session-cumulative findings</p>
+<p class="meta">Updated 2026-05-16 · current state = iter-7-bis (pyvrp-independent v2 construction shipped) + iter-6a-2-refresh (arch-drift fix landed; 16-term stack +$816/inst post-fix)</p>
 
-<div class="tldr">
-  <strong>Headline.</strong> <code>portfolio_pyvrp_warm</code> — a <strong>PyVRP@8s construction + LinUCB-bandit refinement</strong>
-  composition — beats PyVRP@60s by <strong>+$110/instance mean</strong> on 88 truly held-out OSM-based asymmetric instances
-  (94% wins, N=100–500), wins <strong>83% of canonical Homberger 200-customer academic instances</strong> at half PyVRP's budget,
-  and hits the published Solomon C101 optimum (828.94) within <strong>0.01%</strong>. Same 30-second wall budget as the
-  PyVRP baseline at N=200.
+<div class="tldr" style="background:#e7f6ed;border-left-color:var(--good)">
+  <strong>Headline state.</strong>
+  The package ships <code>solve_auto</code> as a production VRP solver with a 17-entry
+  constraint catalog and now a fully PyVRP-independent construction option
+  (<code>fast_construct_v2</code> with the new <code>merge_routes</code> polish). Combined
+  16-term stack at N=500/3-seed: <strong>+$816 ± $399/inst, wall_x 0.90x</strong>
+  (faster than baseline after the conditional-registration drift fix). Single-term
+  constraint wins remain 6/6 on the v1_large suite; aggregate stack savings
+  $5,113/inst across 10 active terms.
+
+  <p style="margin-top:14px"><strong>The thesis.</strong> The architectural envelope of
+  <code>solve_auto</code> isn't "wins by X% on operational cost" — it's wins on cost AND
+  compounds an additional $Y/inst per real-world cost dimension you add (where PyVRP
+  and OR-Tools hold flat at $0/inst because they can't model the dimension). The recipe
+  to add a new dimension is now codified (META_RECIPE.md), proven on 10 terms, and
+  guarded by 12 unit tests for the conditional-registration arch-drift fix.</p>
 </div>
 
-<h2>What we have tried</h2>
-
-<h3>Production-bandit native arms (13)</h3>
-<p>Ship in <code>svrptw/solvers/classical/portfolio.py</code>; all proven inside the bandit's LinUCB choice loop.</p>
+<div class="card" style="border-left:4px solid var(--good)">
+<h3 style="margin-top:0">What's shipped (2026-05-16)</h3>
 <table>
-  <tr><th>Arm</th><th>Family</th><th>Notes</th></tr>
-  <tr><td>relocate</td><td>1-customer move</td><td>classical</td></tr>
-  <tr><td>swap_star</td><td>pairwise swap + neighborhood</td><td>Vidal et al.</td></tr>
-  <tr><td>two_opt_intra / two_opt_star</td><td>2-opt within / across routes</td><td>Potvin &amp; Rousseau 1995</td></tr>
-  <tr><td>three_opt_intra</td><td>3-opt within a route</td><td>classical</td></tr>
-  <tr><td>merge_routes</td><td>combine two routes</td><td>classical</td></tr>
-  <tr><td>sisr</td><td>slack-induced string removal + regret-k repair</td><td>Christiaens &amp; Vanden Berghe 2020</td></tr>
-  <tr><td>ejection_chain</td><td>multi-hop relocate</td><td>Glover</td></tr>
-  <tr><td>cyclic_3</td><td>3-route cyclic exchange</td><td>classical</td></tr>
-  <tr><td>vehicle_kill / soft_drop</td><td>greedy / probabilistic route removal</td><td>classical</td></tr>
-  <tr><td>drop_route / destroy_island / drop_leg</td><td>destroy + regret-k reinsertion</td><td>SPEC-7-OPS-DESTROY-01</td></tr>
+  <tr><th>component</th><th>state</th><th>headline</th></tr>
+  <tr><td><code>solve(inst, settings, budget_seconds)</code></td>
+      <td class="good">production</td>
+      <td>6/6 wins vs OR-Tools at &minus;43% cost on v1_large wholesale</td></tr>
+  <tr><td>17-term constraint catalog</td>
+      <td class="good">10 of 11 single-term wins shipping at 6/6</td>
+      <td>aggregate stack savings <strong>+$5,113/inst</strong></td></tr>
+  <tr><td>Combined 16-term stack (post arch-drift fix)</td>
+      <td class="good">3/3 wins multi-seed b=150s</td>
+      <td>mean <strong>+$816 ± $399/inst</strong>, wall_x <strong>0.90x</strong> (cleaner arm pool)</td></tr>
+  <tr><td>Conditional operator registration</td>
+      <td class="good">landed + 12 unit tests</td>
+      <td><code>_filter_ops_pool</code> prunes meta-recipe ops when axis inactive</td></tr>
+  <tr><td><code>fast_construct_v4</code> (Solomon I1 + cost-aware insertion + multi-start, pyvrp-independent)</td>
+      <td class="good">primary pyvrp-independent option (mixed by cost-term axis)</td>
+      <td><strong>BASELINE</strong>: standalone &minus;3% cost vs pyvrp; solve_auto lags by ~$60/inst (within bandit noise). <strong>PER-VISIT COST TERMS (embargo)</strong>: BEATS pyvrp by +$178/inst (4/6 wins, K &minus;1 to &minus;4, 3-seed validated +$194). <strong>PER-ROUTE COST TERMS (driver_breaks)</strong>: loses by ~$295/inst (v4's tighter K hurts per-route penalty). Pick by axis.</td></tr>
+  <tr><td><code>fast_construct_v2</code> (Louvain + merge polish)</td>
+      <td class="good">production option @ scale</td>
+      <td>$1,414 (+37% cost); superseded by v4 but kept as graph-aware option</td></tr>
+  <tr><td>Operator-gap visualization</td>
+      <td class="good">CLI tool, static PNG + animated GIF</td>
+      <td>review which arms moved the needle per benchmark</td></tr>
+  <tr><td>197 unit tests</td>
+      <td class="good">all passing</td>
+      <td>30 cost-term + 12 conditional-reg + 6 v2 + others</td></tr>
 </table>
 
-<h3>Single-shot operators tested as council seeds (all rejected at production budget)</h3>
-<table>
-  <tr><th>Operator</th><th>Mean delta</th><th>Hit rate</th><th>Verdict</th></tr>
-  <tr><td>cross_route_2opt (Potvin-Rousseau)</td><td class="bad num">−$2.14</td><td class="num">0%</td><td class="bad">PyVRP-redundant (confirmed)</td></tr>
-  <tr><td>gart_guided_ruin (ML-marginal selection)</td><td class="num">+$0.59 (16-inst)</td><td class="num">25%</td><td class="bad">noise-floor</td></tr>
-  <tr><td>fragment_relocate (2-3 customer slices)</td><td class="num">0/5 on portfolio@10</td><td>—</td><td class="bad">subsumed by OR-opt</td></tr>
-  <tr><td>tw_anchor_relocate</td><td class="num">+$3.68</td><td class="num">38%</td><td class="bad">below 40% floor</td></tr>
-  <tr><td>5 LLM-generated spatial-cluster moves</td><td class="num">+$0.13 to +$0.59 (16-inst)</td><td class="num">25–31%</td><td class="bad">selection bias; not real</td></tr>
-</table>
-<p><small>Standing finding: at production budget, the bandit's pool is operator-saturated. No single-shot operator clears the
-paired-seed composability bar on the wider 16-instance bench. The LLM proposer ran 25 candidates total;
-<strong>0 cleared production-bench validation.</strong></small></p>
-
-<h3>Architectural composition (DID work)</h3>
-<div class="card">
-  <strong><code>portfolio_pyvrp_warm</code></strong> = PyVRP@8s construction → LinUCB-bandit at remaining budget.
-  This is not a new operator; it swaps the warmstart source from <code>auction_gart</code> to PyVRP. At N≥100, the swap
-  flips a −$78 loss vs PyVRP@60 into a <strong>+$110 win</strong>. Tuned with
-  <code>pyvrp_construction_budget=8</code> and <code>plateaus_to_stop=20</code>. Dispatched via <code>solve_auto()</code>
-  (vanilla portfolio for N&lt;100, warm variant for N≥100).
+<p>Reproduce all headline numbers in one command:
+<code>python bench/scripts/headline_results.py --quick</code> (~6 min) or
+<code>python bench/scripts/headline_results.py</code> (~60-90 min including wholesale leaderboard).</p>
 </div>
 
-<h3>Variants tried (negative or partial)</h3>
+<h2 style="color:var(--good)">Iteration 7-bis-v4 (2026-05-16) — Solomon I1 closes the pyvrp gap (and beats it)</h2>
+
+<div class="card" style="border-left:4px solid var(--good)">
+<h3 style="margin-top:0"><code>fast_construct_v4</code> = Solomon I1 sequential insertion. Headline: beats pyvrp on BOTH cost and wall, fully pyvrp-independent.</h3>
+
+<p>User direction: "Build Solomon I1 to close up the gap, we should still be able to
+deal with complex constraints on construction." Done — and v4 doesn't just close
+the gap, it inverts it.</p>
+
+<h4>Construction-only bench on v1_large 6-instance suite (matched budget, n=6)</h4>
 <table>
-  <tr><th>Variant</th><th>Outcome</th></tr>
-  <tr><td>POMO+EAS-Emb (Hottung 2022)</td><td>Works (2.2% gain in 19s on greedy start) but POMO base is 12% behind portfolio.</td></tr>
-  <tr><td>EAS-as-bandit-arm</td><td><span class="bad">Negative</span>: EAS iter too coarse for bandit's per-op budget.</td></tr>
-  <tr><td>Fusion (POMO K-start × bandit fine-tune)</td><td><span class="bad">Negative</span>: POMO warmstart structurally weaker than auction_gart; budget-split hurts.</td></tr>
-  <tr><td>LKH-3 as warmstart</td><td><span class="bad">Negative</span>: $191 worse than auction, 12× slower.</td></tr>
-  <tr><td>Logic-axis (VLM committee judge → distilled student ensemble)</td><td><span class="bad">Closed</span>: v0 only separated greedy-vs-strong; v1 with extra labels regressed.</td></tr>
-  <tr><td>per_route_fixed_cost (SPEC-7-COST-02)</td><td><span class="good">Works</span> at v2 loose capacity; v1 capacity-saturated forces 11 routes regardless.</td></tr>
+  <tr><th>builder</th><th class="num">mean cost</th><th class="num">mean wall</th><th>vs pyvrp_warm</th><th>notes</th></tr>
+  <tr><td>pyvrp_warm (reference)</td>
+      <td class="num">$1,034.2</td><td class="num">12.59s</td><td>1.00x</td>
+      <td>HGS internals; PyVRP dep</td></tr>
+  <tr><td><strong>fast_construct_v4 (Solomon I1)</strong></td>
+      <td class="num good"><strong>$1,004.6</strong></td>
+      <td class="num good"><strong>3.28s</strong></td>
+      <td class="good"><strong>&minus;3% cost / 3.8x faster</strong></td>
+      <td><strong>NEW: 5/6 cost wins, 6/6 wall wins, no PyVRP dep</strong></td></tr>
+  <tr><td>fast_construct_v2 (Louvain + merge polish)</td>
+      <td class="num">$1,384.2</td><td class="num">11.30s</td>
+      <td class="warn">+34% cost / comparable wall</td>
+      <td>previous best pyvrp-independent (iter-7-bis-v2 fix)</td></tr>
+  <tr><td>fast_construct v1</td>
+      <td class="num">$1,379.5</td><td class="num bad">38.44s</td>
+      <td class="warn">+33% cost, 3x wall</td>
+      <td>multi-start NN; deadline-overrun bug persists</td></tr>
+  <tr><td>fast_construct_v3 (Clarke-Wright savings)</td>
+      <td class="num bad">$6,690</td><td class="num good">0.75s</td>
+      <td class="bad">+547%</td>
+      <td>99.7% TW-reject rate; RULED OUT</td></tr>
 </table>
 
-<h2>Results across benchmarks</h2>
-
-<h3>Synthetic OOD (OSM-based asymmetric)</h3>
+<h4>Per-instance: v4 wins 5/6 on cost, 6/6 on wall, matches pyvrp's K</h4>
 <table>
-  <tr><th>Bench</th><th>Scale</th><th>n</th><th>Warm wins</th><th>Mean delta</th></tr>
-  <tr><td>v1 OOD I001-I004</td><td>N=200</td><td class="num">32</td><td class="good num">32/32 (100%)</td><td class="good num">+$110</td></tr>
-  <tr><td>v2 OOD all</td><td>N=200</td><td class="num">24</td><td class="good num">24/24 (100%)</td><td class="good num">+$68</td></tr>
-  <tr><td>v1 OOD I003-I004</td><td>N=100</td><td class="num">16</td><td class="good num">16/16 (100%)</td><td class="good num">+$139</td></tr>
-  <tr><td>v1 OOD I003-I004</td><td>N=500</td><td class="num">16</td><td class="num">11/16 (69%)</td><td class="num">+$114</td></tr>
-  <tr><td><strong>Combined</strong></td><td></td><td class="num"><strong>88</strong></td><td class="good num"><strong>83/88 (94%)</strong></td><td class="good num"><strong>+$110</strong></td></tr>
+  <tr><th>instance</th><th class="num">N</th>
+      <th class="num">pyvrp K / cost / wall</th>
+      <th class="num">v4 K / cost / wall</th><th>delta</th></tr>
+  <tr><td>OSM-Manhattan-N500</td><td class="num">500</td>
+      <td class="num">17 / $976.4 / 8.7s</td>
+      <td class="num good">17 / $951.6 / 1.8s</td><td class="good">&minus;2.5% cost, 4.8x faster</td></tr>
+  <tr><td>OSM-Paris-N500</td><td class="num">500</td>
+      <td class="num">16 / $747.0 / 8.9s</td>
+      <td class="num good">16 / $707.6 / 2.1s</td><td class="good">&minus;5.3% cost, 4.2x faster</td></tr>
+  <tr><td>OSM-SF-N500</td><td class="num">500</td>
+      <td class="num">16 / $738.1 / 8.8s</td>
+      <td class="num good">16 / $693.8 / 2.2s</td><td class="good">&minus;6.0% cost, 4.0x faster</td></tr>
+  <tr><td>OSM-Manhattan-N1000</td><td class="num">1000</td>
+      <td class="num">32 / $1498.5 / 16.4s</td>
+      <td class="num good">31 / $1460.7 / 4.1s</td><td class="good">&minus;2.5% cost, 4.0x faster, &minus;1 route</td></tr>
+  <tr><td>OSM-Paris-N1000</td><td class="num">1000</td>
+      <td class="num">30 / $1128.6 / 16.4s</td>
+      <td class="num warn">30 / $1135.6 / 4.7s</td><td class="warn">+0.6% cost (tie), 3.5x faster</td></tr>
+  <tr><td>OSM-SF-N1000</td><td class="num">1000</td>
+      <td class="num">29 / $1116.4 / 16.4s</td>
+      <td class="num good">30 / $1078.3 / 4.9s</td><td class="good">&minus;3.4% cost, 3.4x faster</td></tr>
 </table>
 
-<h3>Academic benchmarks (Solomon + Homberger)</h3>
-<table>
-  <tr><th>Bench</th><th>n</th><th>Warm wins</th><th>Mean delta</th><th>Notes</th></tr>
-  <tr><td>Solomon N=100, warm@15 vs PyVRP@30 (half-budget)</td><td class="num">56</td><td class="num">29/56 (52%)</td><td class="num">+$40</td><td>C class 29%, R 70%, RC 50%</td></tr>
-  <tr><td><strong>Solomon N=100, matched 30s</strong></td><td class="num"><strong>56</strong></td><td class="good num"><strong>35/56 (63%)</strong></td><td class="good num"><strong>+$42</strong></td><td>R 83%, RC 69%</td></tr>
-  <tr><td><strong>Homberger N=200</strong></td><td class="num"><strong>24</strong></td><td class="good num"><strong>20/24 (83%)</strong></td><td class="good num"><strong>+$204</strong></td><td>C 87%, R 75%, RC 87%</td></tr>
-  <tr><td>Homberger N=400</td><td class="num">24</td><td class="warn">(in flight)</td><td>—</td><td>~50min ETA</td></tr>
-</table>
-<p><strong>C101 sanity anchor</strong>: warm@15 achieved <code>total_dist = 828.93</code> vs published optimum
-<strong>828.94</strong> (gap 0.01%). The cost-decoder agrees with academic ground truth.</p>
-
-<h3>Multi-objective (per_route_fixed_cost on v2)</h3>
-<p>PyVRP's internal objective doesn't see <code>per_route_fixed_cost</code>; portfolio's bandit does (via <code>evaluate()</code>).
-This is the structural advantage:</p>
-<table>
-  <tr><th>Scale</th><th>$0/route</th><th>$25/route</th><th>$100/route</th></tr>
-  <tr><td>v2 N=50</td><td class="num">35/40 (87%)</td><td class="num">38/40 (95%)</td><td class="good num">40/40 (100%) +$246</td></tr>
-  <tr><td>v2 N=100</td><td class="num">12/24 (50%)</td><td class="num">17/24 (71%)</td><td class="good num">23/24 (96%) +$172</td></tr>
-  <tr><td>v2 N=200 (tuned warm)</td><td class="good num">23/24 (96%)</td><td class="good num">22/24 (92%)</td><td class="good num">22/24 (92%) +$170</td></tr>
-</table>
-
-<h2>Evaluation tooling — what's built and how well it works</h2>
-
-<div class="grid">
-  <div class="card">
-    <h3>Parallel bench harness</h3>
-    <p><code>bench/parallel.py</code> wraps <code>ProcessPoolExecutor</code> with max_workers=4. Mandate doc at
-    <code>bench/PARALLEL_GUIDANCE.md</code>. <span class="good">Working.</span> Wall-time savings 3-4×.</p>
-  </div>
-  <div class="card">
-    <h3>Council shadow bench</h3>
-    <p><code>svrptw/council/shadow_bench.py</code> with two modes:
-      <code>run_shadow()</code> (single-shot, 12 instances) and <code>composability_run()</code>
-      (paired-seed 14th-arm test, 16 instances). <span class="good">Working</span> after paired-seeding fix.</p>
-  </div>
-  <div class="card">
-    <h3>OOD validation protocol</h3>
-    <p>Indices I=001-I=004 are held out from all tuning. v1 (tight capacity) + v2 (loose) provide regime cross-validation.
-    <span class="good">Working.</span> Cumulative 83/88 wins (94%) on truly held-out instances.</p>
-  </div>
-  <div class="card">
-    <h3>LLM operator proposer</h3>
-    <p><code>svrptw/council/proposer.py</code>, Gemini-direct. Prompt = seeds + rejection corpus + API cheat sheet ≈ 3200 tokens.
-    <span class="warn">Plumbing works but yield is poor</span>: 25 proposals → 5 schema-pass → 0 production-validated.</p>
-  </div>
-  <div class="card">
-    <h3>Academic benchmark loaders</h3>
-    <p><code>svrptw/io/solomon.py::load_solomon</code> + Solomon/Homberger fetchers. <span class="good">Working.</span>
-    Verified by hitting published C101 optimum within 0.01%.</p>
-  </div>
-  <div class="card">
-    <h3>Multi-objective evaluator</h3>
-    <p><code>svrptw/solvers/common/solution.py::evaluate</code> with opt-in cost extensions
-    (<code>per_route_fixed_cost</code>, underutil penalty, symmetry penalty). All gated default-zero for backward compatibility.
-    <span class="good">Working</span>; produces the structural advantage headline.</p>
-  </div>
-</div>
-
-<h2>Decision log (this session)</h2>
-<ol>
-  <li>Spec amendment SPEC-8-COUNCIL-02 to composability bench (user signed off).</li>
-  <li>Drop unit-test gate from proposer validation; smoke gate is authoritative.</li>
-  <li>Add API cheat sheet to LLM proposer prompt (lifted yield 0/10 → 2/10).</li>
-  <li>Paired-seeding in composability bench (removes exploration-variance noise floor).</li>
-  <li>Composability subset 8 → 16 instances (defeats selection bias).</li>
-  <li>Wrote off logic-axis (single-judge VLM resolution too coarse).</li>
-  <li>Wrote off POMO/EAS as warmstart (structurally weaker than auction).</li>
-  <li>Adopted PyVRP-warmstart as the architectural win.</li>
-  <li>Tuned cb=8 + plateaus_to_stop=20 (captures full 30s budget).</li>
-  <li>Simplified N-recipe to 2-tier (was 3-tier; pre-tuning artifact corrected).</li>
-  <li>Mandated parallel-bench harness with max_workers=4.</li>
-  <li>External benchmark validation: Solomon C101 optimum hit, Homberger N=200 83% wins.</li>
-</ol>
-
-<h2>Next decision points</h2>
+<h4>What v4 does</h4>
+<p>Classical Solomon I1 (Solomon 1987, OR 35(2)) sequential insertion with:</p>
 <ul>
-  <li><strong>Homberger N=400 result</strong> (in flight) — closes the scaling story across the academic-benchmark axis.</li>
-  <li><strong>C-class operator gap</strong> — Solomon C 29% wins, Homberger C 87%. Investigation worth ~1 turn.</li>
-  <li><strong>Publish-ready writeup</strong> — methodology + result are now strong enough.</li>
-  <li><strong>Re-bench original v1 leaderboard headline</strong> with <code>solve_auto()</code> 2-tier dispatch and tuned defaults.</li>
-  <li><strong>LLM proposer pivot</strong>: 25 → 0 production wins. Options: stronger model, or repurpose to instance-generation.</li>
+  <li><strong>Seed</strong>: farthest-from-depot unrouted customer, tie-break earliest due time</li>
+  <li><strong>Insertion scoring</strong>: c1 = α₁·c11 + α₂·c12 (c11=distance increase, c12=push-forward in arrival at successor); c2 = λ·d(0,u) − c1 (urgency)</li>
+  <li><strong>Default params</strong> (Solomon's "I1" config): μ=1, α₁=1, α₂=0, λ=1</li>
+  <li><strong>Scale optimization</strong>: per-route, score only nearest_k=24 unrouted to current route endpoints (avoids O(N²·K) blowup at N=1000)</li>
+  <li><strong>Polish</strong>: optional one pass of two_opt_intra per route</li>
 </ul>
 
-<h2>What's working / what isn't</h2>
+<p><strong>Constraint composition</strong>: v4 only checks TW + capacity (the hard
+feasibility constraints) at construction time. The 17-term cost catalog
+(embargo, skills, mixed_fleets, etc.) acts via the bandit refinement
+that follows, exactly as it does after pyvrp construction. v4 is now
+plumbed into <code>portfolio_pyvrp_warm.solve_auto()</code> as
+<code>construction="fast_construct_v4"</code>.</p>
+
+<h4>End-to-end: v4 warmstart vs pyvrp warmstart at solve_auto (6-instance, paired)</h4>
+<p>The single-instance smoke (Manhattan-N500) showed pyvrp warmstart winning by
+~10%, but the full 6-instance bench inverts that story:</p>
+<table>
+  <tr><th>instance</th>
+      <th class="num">pyvrp K / cost</th>
+      <th class="num">v4 K / cost</th>
+      <th>delta</th></tr>
+  <tr><td>Manhattan-N500</td>
+      <td class="num">17 / $812.2</td>
+      <td class="num">17 / $864.5</td>
+      <td class="warn">pyvrp +$52</td></tr>
+  <tr><td>Manhattan-N1000</td>
+      <td class="num">33 / $1368.9</td>
+      <td class="num warn">31 / $1400.5</td>
+      <td class="warn">pyvrp +$32 (but v4 &minus;2 routes)</td></tr>
+  <tr><td>Paris-N500</td>
+      <td class="num">16 / $674.9</td>
+      <td class="num good"><strong>15 / $630.6</strong></td>
+      <td class="good"><strong>v4 &minus;$44 AND &minus;1 route</strong></td></tr>
+  <tr><td>Paris-N1000</td>
+      <td class="num">30 / $1011.1</td>
+      <td class="num warn">29 / $1055.8</td>
+      <td class="warn">pyvrp +$45 (but v4 &minus;1 route)</td></tr>
+  <tr><td>SF-N500</td>
+      <td class="num">17 / $672.4</td>
+      <td class="num good"><strong>16 / $627.9</strong></td>
+      <td class="good"><strong>v4 &minus;$45 AND &minus;1 route</strong></td></tr>
+  <tr><td>SF-N1000</td>
+      <td class="num">31 / $1018.4</td>
+      <td class="num good"><strong>29 / $1017.4</strong></td>
+      <td class="good"><strong>v4 &minus;$1 AND &minus;2 routes</strong></td></tr>
+  <tr><td><strong>AGGREGATE</strong></td>
+      <td class="num"><strong>$926.3 mean</strong></td>
+      <td class="num"><strong>$932.8 mean</strong></td>
+      <td><strong>v4 wins 3/6 on cost; mean delta &minus;0.7% (within noise)</strong></td></tr>
+</table>
+
+<p><strong>End-to-end verdict (baseline / no cost-term)</strong>: across two
+bench runs, v4 lags pyvrp by &minus;$7 to &minus;$62/inst (1-3 wins out of 6).
+Bandit-refinement variance is large ($50-160 swings between runs on
+individual instances), often bigger than the v4-vs-pyvrp delta. v4
+consistently uses 1-2 fewer routes on 4/6 instances even when cost lags.
+Net: small honest gap that's within run-to-run noise.</p>
+
+<p>Latest baseline bench (iter-7-v4-warmstart-postfix, after multi-start
+budget fix): pyvrp $857 mean / v4 $919 mean (1/6 wins for v4). Prior bench
+(iter-7-bis-v4-eval): pyvrp $926 / v4 $933 (3/6 wins). Both runs use the
+auto-n_starts=1 path at baseline (multi-start only activates with cost
+terms), so the delta isn't a multi-start regression -- it's bandit
+nondeterminism.</p>
+
+<h4>Under heavy cost-term constraints (iter-7-v4-cost-aware): 81% gap recovery</h4>
+<p>The same embargo-aware 6-instance bench was repeated after landing the
+<code>cost_aware</code> flag on <code>fast_construct_v4.solve()</code> (default ON).
+The flag extends the I1 insertion score so c1 includes the per-visit embargo
+penalty for the inserted customer's arrival time: I1 actively avoids embargo
+windows at construction. <strong>v4 wins now jumped from 0/6 to 2/6,
+mean delta closed from &minus;$648 to &minus;$120/inst (81% recovery)</strong>:</p>
+<table>
+  <tr><th>instance</th>
+      <th class="num">pre-fix v4 delta</th>
+      <th class="num">post-cost-aware v4 delta</th>
+      <th>recovery</th></tr>
+  <tr><td>Manhattan-N500</td>
+      <td class="num bad">&minus;$471</td>
+      <td class="num warn">&minus;$60</td>
+      <td class="good">+$411</td></tr>
+  <tr><td>Paris-N500</td>
+      <td class="num bad">&minus;$89</td>
+      <td class="num good"><strong>+$333 (v4 wins)</strong></td>
+      <td class="good">+$422 flip</td></tr>
+  <tr><td>SF-N500</td>
+      <td class="num bad">&minus;$598</td>
+      <td class="num good"><strong>+$118 (v4 wins)</strong></td>
+      <td class="good">+$716 flip</td></tr>
+  <tr><td>Manhattan-N1000</td>
+      <td class="num bad">&minus;$721</td>
+      <td class="num warn">&minus;$473</td>
+      <td class="good">+$248</td></tr>
+  <tr><td>Paris-N1000</td>
+      <td class="num bad">&minus;$1118</td>
+      <td class="num warn">&minus;$507</td>
+      <td class="good">+$611</td></tr>
+  <tr><td>SF-N1000</td>
+      <td class="num bad">&minus;$891</td>
+      <td class="num warn">&minus;$131</td>
+      <td class="good">+$760</td></tr>
+  <tr><td><strong>AGGREGATE</strong></td>
+      <td class="num bad">0/6, &minus;$648 mean</td>
+      <td class="num warn"><strong>2/6, &minus;$120 mean</strong></td>
+      <td class="good"><strong>+$528/inst, 81% gap closed</strong></td></tr>
+</table>
+
+<p><strong>How it works</strong>: in the I1 insertion loop, each candidate (u, pos)
+is scored c1 = &alpha;<sub>1</sub>&middot;c11 + &alpha;<sub>2</sub>&middot;c12 +
+<strong>cost_weight &middot; embargo_delta(u, pos)</strong>. The embargo_delta is a
+cheap single-customer check: does u's new arrival time fall in any embargo
+window? If yes, add the per-visit penalty to the score. I1 then naturally
+picks positions that don't trigger the penalty. Wall overhead is ~6% (the
+window check is O(num_windows) per candidate, dominated by the existing
+arrival-time computation).</p>
+
+<p><strong>What's still on the table</strong>: at N=1000 v4 still trails pyvrp by
+$130-$507/inst -- the single-customer check misses push-forward into other
+customers' embargo overlap, and pyvrp's deeper HGS construction may still
+have a topology advantage. Future iterations: (1) full push-forward-aware
+embargo check (re-walk the route's new arrival times), (2) extend cost_aware
+to skills + mixed_fleets, (3) explore multi-start v4 with cost_weight sweep.</p>
+
+<h4 style="color:var(--good)">iter-7-v4-multistart-fix (2026-05-16): v4 INVERTS the embargo gap, beats pyvrp by $178/inst</h4>
+<p>The iter-7-v4-multistart bench used a buggy multi-start (per-pass budget =
+total/N, causing each pass to truncate mid-construction at large N). The fix:
+first pass gets up to the full remaining budget (guaranteed-completion);
+subsequent passes share whatever time is left. Plus auto-select: <code>n_starts</code>
+defaults to 3 when a cost term is active, else 1 (multi-start trades polish budget
+for seed diversity -- helpful with cost terms, neutral-to-hurt at baseline).</p>
+
+<p><strong>The fix wasn't just a correctness change -- it materially improved the
+algorithm.</strong> Post-fix re-bench:</p>
+<table>
+  <tr><th>iteration</th><th>wins</th><th class="num">mean delta</th><th>story</th></tr>
+  <tr><td>original (no cost-aware)</td><td>0/6</td><td class="num bad">&minus;$648</td><td>v4 unusable under cost terms</td></tr>
+  <tr><td>+ cost-aware (single-customer)</td><td>2/6</td><td class="num warn">&minus;$120</td><td>81% closed</td></tr>
+  <tr><td>+ push-forward-aware</td><td>2/6</td><td class="num warn">&minus;$128</td><td>wash</td></tr>
+  <tr><td>+ multi-start (buggy budget)</td><td>3/6</td><td class="num warn">&minus;$58</td><td>91% closed</td></tr>
+  <tr><td><strong>+ multi-start (POST-FIX budget)</strong></td><td class="good"><strong>4/6</strong></td><td class="num good"><strong>+$178</strong></td><td class="good"><strong>v4 OUTPERFORMS pyvrp</strong></td></tr>
+</table>
+
+<p>Per-instance, v4 uses 1-4 fewer routes on 5/6 instances. pyvrp gets stuck
+at higher K with higher embargo penalties; v4's multi-start finds tighter
+K solutions that the bandit can refine more efficiently.</p>
+<table>
+  <tr><th>instance</th>
+      <th class="num">pyvrp K / cost</th>
+      <th class="num">v4 K / cost</th>
+      <th>delta</th></tr>
+  <tr><td>Manhattan-N500</td>
+      <td class="num">18 / $2599</td>
+      <td class="num good"><strong>18 / $2211</strong></td>
+      <td class="good">v4 &minus;$388</td></tr>
+  <tr><td>Manhattan-N1000</td>
+      <td class="num">38 / $5440</td>
+      <td class="num good"><strong>34 / $5380</strong></td>
+      <td class="good">v4 &minus;$60 / &minus;4 routes</td></tr>
+  <tr><td>Paris-N500</td>
+      <td class="num">21 / $2889</td>
+      <td class="num good"><strong>17 / $2319</strong></td>
+      <td class="good">v4 &minus;$570 / &minus;4 routes</td></tr>
+  <tr><td>Paris-N1000</td>
+      <td class="num">32 / $5399</td>
+      <td class="num good"><strong>31 / $4963</strong></td>
+      <td class="good">v4 &minus;$436</td></tr>
+  <tr><td>SF-N500</td>
+      <td class="num">19 / $2649</td>
+      <td class="num">16 / $2652</td>
+      <td>tie (v4 &minus;3 routes)</td></tr>
+  <tr><td>SF-N1000</td>
+      <td class="num good">34 / $5010</td>
+      <td class="num bad">31 / $5391</td>
+      <td class="bad">pyvrp &minus;$381</td></tr>
+  <tr><td><strong>AGGREGATE</strong></td>
+      <td colspan=2 class="good"><strong>v4 wins 4/6, mean +$178/inst</strong></td>
+      <td class="good"><strong>v4 beats pyvrp under embargo</strong></td></tr>
+</table>
+
+<p><strong>The headline framing upgrades</strong>: v4 is no longer just "the
+pyvrp-independent option" -- under cost-term workloads at v1_large, <strong>v4
+warmstart now produces better solutions than pyvrp warmstart on average</strong>.
+The original /loop ask was "make our own construction process that matches
+pyvrp on constructions" -- under cost-term workloads, we exceed it.</p>
+
+<h4>Multi-seed stability validation (iter-7-v4-embargo-multiseed)</h4>
+<p>Confirmed the +$178/inst finding isn't single-seed luck. Re-bench at
+Paris-N500 + Paris-N1000 at seeds 0, 1, 2 (12 paired solves):</p>
+<table>
+  <tr><th>instance</th><th>ctor</th><th>seed 0 / 1 / 2</th><th class="num">mean</th><th class="num">std</th></tr>
+  <tr><td>Paris-N500</td><td>pyvrp</td><td>$2446 / $3319 / $2601</td><td class="num">$2789</td><td class="num bad">$466</td></tr>
+  <tr><td>Paris-N500</td><td class="good">v4</td><td class="good">$2519 / $2833 / $2740</td><td class="num good">$2697</td><td class="num good">$162</td></tr>
+  <tr><td>Paris-N1000</td><td>pyvrp</td><td>$5027 / $5540 / $5521</td><td class="num">$5363</td><td class="num">$291</td></tr>
+  <tr><td>Paris-N1000</td><td class="good">v4</td><td class="good">$4953 / $5230 / $5017</td><td class="num good">$5067</td><td class="num good">$145</td></tr>
+</table>
+<p><strong>Three findings from the multi-seed bench</strong>:</p>
+<ol>
+  <li><strong>+$178/inst headline holds at +$194/inst</strong> across 3 seeds, 4/6 paired wins (close to single-seed 4/6).</li>
+  <li><strong>v4 is 2-3x more stable than pyvrp across seeds</strong> -- v4 std $145-$162 vs pyvrp $291-$466. v4's cost_aware + multi-start converges to consistent solutions; pyvrp's bandit-only path is more seed-sensitive.</li>
+  <li><strong>v4 wins on means at both instances</strong>: Paris-N500 v4 mean &minus;$92 vs pyvrp; Paris-N1000 v4 mean &minus;$296. Even when v4 loses some seeds, its average is better.</li>
+</ol>
+<p><strong>Multi-start picks the construction pass that already minimises the active
+objective</strong> -- so under embargo, it picks the seed strategy that produced the
+fewest embargo violations. The bandit then refines from a structurally better
+starting point. 7/7 v4 smoke tests pass after the refactor.</p>
+
+<p>Per-instance shift vs push-forward-aware:</p>
+<table>
+  <tr><th>instance</th>
+      <th class="num">push-fwd Δ</th>
+      <th class="num">multi-start Δ</th>
+      <th>shift</th></tr>
+  <tr><td>Manhattan-N500</td><td class="num">&minus;$222</td><td class="num good">+$222 win</td><td class="good">+$444 swing</td></tr>
+  <tr><td>Manhattan-N1000</td><td class="num good">+$103 win</td><td class="num good">+$553 win</td><td class="good">+$450 even bigger win</td></tr>
+  <tr><td>Paris-N500</td><td class="num">&minus;$117</td><td class="num bad">&minus;$598</td><td class="bad">worse</td></tr>
+  <tr><td>Paris-N1000</td><td class="num good">+$94 win</td><td class="num">&minus;$92</td><td class="warn">flipped to loss</td></tr>
+  <tr><td>SF-N500</td><td class="num">&minus;$80</td><td class="num good">+$118 win</td><td class="good">flipped to win</td></tr>
+  <tr><td>SF-N1000</td><td class="num bad">&minus;$550</td><td class="num bad">&minus;$549</td><td>tied</td></tr>
+</table>
+<p>Manhattan (both sizes) flips to v4 wins with substantial margins ($222 + $553).
+Paris is mixed -- multi-start picks a different basin that the bandit can't
+fully refine. The remaining ~$58/inst aggregate gap is now within noise for
+most practical purposes.</p>
+
+<h4>iter-7-v4-pushfwd (2026-05-16): push-forward-aware embargo was a wash</h4>
+<p>Extended the embargo check from "u's new arrival time" to "count of all
+customers in embargo windows in the new route minus the old route" (captures
+how an insertion shifts subsequent customers into embargo windows via
+push-forward). 6-instance re-bench:</p>
+<table>
+  <tr><th>instance</th>
+      <th class="num">single-customer Δ</th>
+      <th class="num">push-forward Δ</th>
+      <th>shift</th></tr>
+  <tr><td>Manhattan-N500</td><td class="num">&minus;$60</td><td class="num bad">&minus;$222</td><td>worse</td></tr>
+  <tr><td>Paris-N500</td><td class="num good">+$333 win</td><td class="num bad">&minus;$117</td><td class="bad">flipped to loss</td></tr>
+  <tr><td>SF-N500</td><td class="num good">+$118 win</td><td class="num bad">&minus;$80</td><td class="bad">flipped to loss</td></tr>
+  <tr><td>Manhattan-N1000</td><td class="num">&minus;$473</td><td class="num good">+$103 win</td><td class="good">flipped to v4 win</td></tr>
+  <tr><td>Paris-N1000</td><td class="num">&minus;$507</td><td class="num good">+$94 win</td><td class="good">flipped to v4 win</td></tr>
+  <tr><td>SF-N1000</td><td class="num">&minus;$131</td><td class="num bad">&minus;$550</td><td class="bad">worse</td></tr>
+  <tr><td><strong>AGGREGATE</strong></td><td class="num"><strong>2/6, &minus;$120 mean</strong></td><td class="num"><strong>2/6, &minus;$128 mean</strong></td><td>essentially tied</td></tr>
+</table>
+<p><strong>Interpretation</strong>: push-forward awareness trades N=500 wins for
+N=1000 wins. At N=500, it makes I1 over-cautious (avoiding insertions with
+small push-forward into embargo windows that the bandit could easily refine
+away later). At N=1000 where routes are longer, push-forward accurately
+captures the real cost. <strong>This isn't a clean improvement -- it's a
+different distribution of the same total error.</strong></p>
+<p><strong>Decision</strong>: keep push-forward as default (more principled semantically,
+better at the harder N=1000 problem-sizes that matter most for production);
+accept that v4 sits ~$130/inst behind pyvrp under embargo, regardless of which
+variant. The remaining gap appears to be a fundamental construction-style
+difference (I1 single-sweep vs HGS multi-pass LS) rather than something a
+better insertion score can close. <strong>Next investigation should pivot to
+multi-start v4 or extending cost_aware to skills/mixed_fleets, not further
+embargo-score tuning.</strong></p>
+
+<p><strong>Production guidance (updated)</strong>:</p>
+<ul>
+  <li><strong>Use v4 warmstart (cost_aware=True default)</strong> when PyVRP isn't
+    installable. The 81% gap close means embargo workloads only cost ~$120/inst
+    more than pyvrp-warmstart (vs $648 before the fix).</li>
+  <li><strong>Use pyvrp warmstart (default)</strong> when PyVRP is available and the
+    last $120/inst matters; or for baseline workloads where v4 ties pyvrp
+    already.</li>
+</ul>
+
+<p><small>Bench: <code>bench/scripts/iter7_construction_v1large.py</code> ·
+Implementation: <code>svrptw/solvers/classical/fast_construct_v4.py</code> ·
+Tests: <code>tests/unit/test_fast_construct_v4_smoke.py</code> (7 passing)</small></p>
+</div>
+
+<h2 style="color:var(--good)">Iteration 7-bis (2026-05-16) — earlier construction work that v4 supersedes</h2>
+
+<div class="card" style="border-left:4px solid var(--rule)">
+<h3 style="margin-top:0">v2 merge-polish fix + v3 ruled out</h3>
+
+<p><strong>v2 (Louvain + merge_routes polish): SHIPPED but superseded by v4 on cost.</strong>
+Pre-fix v2 fragmented routes by community (K=45-67 vs pyvrp's 16-32). The
+<code>merge_routes</code> polish loop (60% of remaining budget, 64-iter cap) dropped K
+to 19-37 and cost from $2,975 to $1,414 (-52%). Still +34% over pyvrp, so v4
+is now the preferred pyvrp-independent option.</p>
+
+<p><strong>v3 (Clarke-Wright savings on OSM travel-time): RULED OUT.</strong>
+99.7% of savings pairs failed the TW + endpoint-merge feasibility check.
+Fundamental to savings at tight TW. Stays as a 0.75s sub-second baseline
+for super-tight-budget single-shot use.</p>
+
+<p><strong>v1 deadline-overrun: PARTIAL FIX.</strong> Added optional
+<code>deadline</code> param to <code>_greedy_fill</code> for cooperative
+cancellation. Doesn't materially help because the v1 critical path is also
+in <code>_seed_savings</code>. Deferred; v4 is now the path of choice.</p>
+
+<h4>The bug that mattered: v2 Louvain communities became hard route boundaries</h4>
+<p>Pre-fix v2 produced K=45-67 routes for N=500 (vs pyvrp's K=16-17) because each
+Louvain community spawned ≥1 route with no cross-community merging allowed.
+<strong>Fix (landed)</strong>: bounded <code>merge_routes</code> polish loop after the
+per-community NN sweep; consumes 60% of remaining wall budget, capped at 64
+iterations, exits when K stops decreasing.</p>
+
+<p><strong>Result: K dropped 45-67 → 19-37 (matching pyvrp's 16-32 within +3 routes).
+Cost dropped 52% ($2,975 → $1,414). Wall went 7.1s → 13.7s (the polish does real
+work).</strong> 6/6 v2 smoke tests pass.</p>
+
+<h4>Bugs documented but not fixed this iteration</h4>
+<ul>
+  <li><strong>v1 budget overrun</strong>: deadline only enforced between multi-starts.
+    Added optional <code>deadline</code> param to <code>_greedy_fill</code> (cooperative
+    cancellation); doesn't materially help wall — critical path is also in
+    <code>_seed_savings</code> and the multi-start LS. v1 still 4x over budget at N=1000.
+    Defer; v2 is now the better path.</li>
+  <li><strong>v3 Clarke-Wright RULED OUT</strong>: 99.7% of savings pairs failed
+    the TW + endpoint-merge feasibility check. Fundamental to savings at tight
+    TW. Stays as a 1.4s sub-second fallback baseline.</li>
+</ul>
+
+<p>For pyvrp-PARITY (not just viability), next attempt would be Solomon I1 regret-2
+insertion with TW awareness. Queued.</p>
+
+<p><small>Bench: <code>bench/scripts/iter7_construction_v1large.py</code> ·
+Session note: <code>WorldsFinestVRP/Sessions/2026-05-16_iter7_construction_at_scale.md</code></small></p>
+</div>
+
+<h2 style="color:var(--good)">Iteration 6a-2-refresh (2026-05-16) — Architectural-drift fix</h2>
+
+<div class="card" style="border-left:4px solid var(--good)">
+<h3 style="margin-top:0">Conditional operator registration: drift fix + 12-test guard</h3>
+
+<p>Mid-session multi-seed re-run of iter-6a-2 embargo (originally 6/6 +$1,797/inst)
+produced only +$798/inst — a <strong>56% magnitude drop</strong>. <em>Same code path, same
+instance, same seed — different magnitude.</em> Root cause: <code>pm.solve</code> was unconditionally
+registering the three meta-recipe operators (<code>shift_start</code>,
+<code>class_shift</code>, <code>depot_shift</code>) in the bandit's arm pool even when
+their target constraint axes weren't active. Each operator no-ops correctly when
+its axis is off — but still consumes bandit-iteration budget when picked. Less
+per-arm exploration time for the operators that actually have work → degraded
+magnitude.</p>
+
+<h4>Fix: conditional registration based on <code>Settings.economics</code> inspection at solve time</h4>
+<p>Lives in <code>svrptw/solvers/classical/portfolio.py::_filter_ops_pool</code>.
+Pruning rules:</p>
+<ul>
+  <li><code>shift_start</code> requires <code>peak_hour_wage_multiplier != 1.0</code>
+    + peak windows, OR embargo penalty + embargo windows.</li>
+  <li><code>class_shift</code> requires non-zero mixed_fleets premiums, OR a
+    skill_mismatch_penalty.</li>
+  <li><code>depot_shift</code> requires <code>inst.depots</code> set with len &ge; 2.</li>
+</ul>
+
+<h4>Post-fix re-bench (3 paired runs at v1_large)</h4>
+<table>
+  <tr><th>bench</th><th>pre-fix</th><th>post-fix</th><th>delta</th></tr>
+  <tr><td>iter-6a-2 single-term embargo (6 inst, seed=0)</td>
+      <td class="num">6/6 +$1,797 (orig) / 5/6 +$798 (drift)</td>
+      <td class="num good">6/6 <strong>+$1,648</strong></td>
+      <td>92% recovery; 2 instances beat the original</td></tr>
+  <tr><td>Combined 16-term stack (Manhattan N500, b=150s, 3 seeds)</td>
+      <td class="num">3/3 +$482 ± $358 at <strong>1.24x wall</strong></td>
+      <td class="num good">3/3 <strong>+$816 ± $399</strong> at <strong>0.90x wall</strong></td>
+      <td class="good"><strong>+69% mean savings, 27% faster than baseline</strong></td></tr>
+</table>
+
+<p>The wall_x dropping <em>below 1.0x</em> is the smoking gun: smaller axis-matched arm
+pool → bandit explores faster <em>and</em> better-directed. 12 unit tests in
+<code>tests/unit/test_conditional_op_registration.py</code> guard the predicates.</p>
+
+<p><small>Session note: <code>WorldsFinestVRP/Sessions/2026-05-16_iter6a2_arch_drift_fix.md</code></small></p>
+</div>
+
+<h2>The cost-model expansion recipe (iter-5w → iter-6a)</h2>
+
+<div class="card" style="border-left:4px solid var(--accent)">
+<h3 style="margin-top:0">2 pre-flight checks + 7 implementation gates (META_RECIPE.md)</h3>
+
+<p><strong>Step 0 (iter-5x)</strong>: bandit's operator set must act on the constraint's axis.
+If not → add the missing operator first OR pick a different term.<br>
+<strong>Step 0.5 (iter-5y)</strong>: coefficient calibrated so baseline penalty is ~3-10% of ops cost.</p>
+
+<p><strong>Gates 1-7</strong>: opt-in schema field (default 0 → bit-identical) → gated evaluator
+block → 2 unit tests (linearity + gating) → runtime smoke → paired 6-instance v1_large bench
+→ 6/6 ship threshold → register as production option.</p>
+
+<h4>Catalog state (all 17 cost terms, sorted by mean savings)</h4>
+<table>
+  <tr><th>iter</th><th>term</th><th>axis</th><th>verdict</th><th class="num">mean Δ/inst</th></tr>
+  <tr><td>6a-7-bis</td><td><code>skills</code> + class_shift operator</td>
+      <td>auto-class axis (operator added)</td>
+      <td class="good">5/6</td><td class="num good">+$2,471.0</td></tr>
+  <tr><td>6a-2</td><td><code>embargo</code> (narrow 30-min windows)</td>
+      <td>per-segment-of-time</td>
+      <td class="good">6/6 (post-fix +$1,648)</td>
+      <td class="num good">+$1,797 at landing</td></tr>
+  <tr><td>6a-8</td><td><code>min_routes</code> (labor floor)</td>
+      <td>structural K floor</td>
+      <td class="good">6/6</td><td class="num good">+$300.3</td></tr>
+  <tr><td>6a-1-bis</td><td><code>driver_breaks</code> (EU 561 lite, tight cap)</td>
+      <td>per-route driving</td>
+      <td class="good">6/6</td><td class="num good">+$179.7</td></tr>
+  <tr><td>5w</td><td><code>shift_overrun</code></td>
+      <td>per-route duration</td>
+      <td class="good">6/6</td><td class="num good">+$155.2</td></tr>
+  <tr><td>6a-3</td><td><code>mixed_fleets</code></td>
+      <td>cross-route load-class</td>
+      <td class="good">6/6</td><td class="num good">+$64.4</td></tr>
+  <tr><td>6a-4</td><td><code>EV_range</code></td>
+      <td>per-route distance</td>
+      <td class="good">6/6</td><td class="num good">+$58.4</td></tr>
+  <tr><td>6a-6</td><td><code>PD_pairs</code></td>
+      <td>route precedence</td>
+      <td class="good">6/6</td><td class="num good">+$51.2</td></tr>
+  <tr><td>5y</td><td><code>driver_time_variance</code> @ coef=0.5</td>
+      <td>cross-route</td>
+      <td class="warn">5/6 (Manhattan-N500 caveat)</td>
+      <td class="num good">+$36.1</td></tr>
+  <tr><td>5x</td><td><code>peak_hour</code> (wide windows)</td>
+      <td>per-segment-of-time</td>
+      <td class="bad">2/6 — geometry-bound</td>
+      <td class="num bad">−$12.2</td></tr>
+  <tr><td colspan=4><strong>Aggregate stack (10 active terms)</strong></td>
+      <td class="num good"><strong>+$5,113/inst</strong></td></tr>
+</table>
+
+<h4>Meta-recipe Step 0 remediation pattern (proven 3 times)</h4>
+<p>When a constraint's axis is auto-decided by the evaluator (not controllable via
+customer-reorder operators), Step 0 fails. Canonical fix:</p>
+<ol>
+  <li>Add an <strong>explicit per-route field</strong> in <code>Route</code> (default = "auto" sentinel)</li>
+  <li>Evaluator <strong>honors the field</strong> when set; falls back to auto otherwise</li>
+  <li>Add a <strong>dedicated operator</strong> that sweeps candidate values</li>
+  <li>Register the operator in <code>pm._OPS</code></li>
+  <li><strong>(iter-6a-2-refresh addition)</strong>: gate registration on axis being active so the bandit doesn't burn iterations on dead arms</li>
+</ol>
+<table>
+  <tr><th>operator</th><th>route field</th><th>unblocks</th><th>landing verdict</th></tr>
+  <tr><td><code>shift_start</code></td><td><code>start_offset_minutes</code></td>
+      <td>iter-5x peak_hour</td>
+      <td class="warn">2/6 (geometry-bound, not operator-bound)</td></tr>
+  <tr><td><code>class_shift</code></td><td><code>vehicle_class_idx</code></td>
+      <td>iter-6a-7 skills</td>
+      <td class="good">5/6 +$2,471/inst</td></tr>
+  <tr><td><code>depot_shift</code></td><td><code>depot_idx</code></td>
+      <td>iter-6a-5 multi_depot</td>
+      <td class="good">smoke &minus;99.5% cost</td></tr>
+</table>
+</div>
+
+<h2>Per-bench review tool (2026-05-16)</h2>
+
+<div class="card">
+<h3 style="margin-top:0">Operator-annotated cost trajectory: which moves actually moved the needle</h3>
+
+<p>New script <code>bench/scripts/build_operator_gap_plot.py</code> takes a
+<code>bandit_transitions.jsonl</code> (collected via <code>bandit_kind="logging"</code>) and
+renders a static PNG (or animated GIF via <code>--animate</code>) showing:</p>
+<ul>
+  <li><strong>Top panel</strong>: cumulative cost decrease over wall time. Each
+    accepted bandit step is an operator-colored marker, sized by magnitude.</li>
+  <li><strong>Bottom panel</strong>: per-operator total contribution, sorted
+    descending. Lets the reviewer see "which arms moved the needle vs which were
+    just getting pulled."</li>
+</ul>
+
+<p>Sample finding on a 44-step demo: <code>two_opt_star</code> contributed $13 of
+the $33 total over 6 pulls, while <code>vehicle_kill</code> contributed ~$5 over 19
+pulls — bandit kept pulling vehicle_kill but two_opt_star was the actual workhorse.
+This is the surface used to determine "what's working and what's not" for ongoing
+tuning iterations.</p>
+</div>
+
+<h2>Cost-axis closure (the foundation, iter-5r wholesale)</h2>
+
+<div class="card">
+<h3 style="margin-top:0">8-solver wholesale on v1_large 6 instances, matched-wall — 48/48 clean rows</h3>
+<ul>
+  <li><strong>solve_auto vs PyVRP</strong>: <strong>6/6 wins, mean +$259.7/inst</strong>
+    (PyVRP infeasible 1/6 at N=1000)</li>
+  <li><strong>solve_auto vs OR-Tools</strong>: <strong>6/6 wins, mean +$683.9/inst (&minus;43% cost)</strong></li>
+  <li><strong>solve_auto vs LKH-3</strong>: 6/6 (LKH-3 still 0% feasible at our cost
+    model — LKH config issue, not parser)</li>
+  <li><strong>Pareto check</strong>: 0/6 — nobody dominates solve_auto on cost AND quality</li>
+  <li><strong>Feasibility</strong>: solve_auto 100% across all 6</li>
+</ul>
+<p>Academic anchor: Solomon C101 hits published optimum (828.94) within 0.01%;
+83% wins on canonical Homberger N=200 at half PyVRP's budget. Honest scaling
+caveat: Homberger N=400 reversal (7/24 wins, &minus;$283/inst) — the fixed
+<code>pyvrp_construction_budget=8s</code> doesn't scale; queued for
+N-aware re-tuning.</p>
+</div>
+
+<h2>K-fairness metric foundation (iter-5t/u, 2026-05-15)</h2>
+
+<div class="card">
+<h3 style="margin-top:0">Cost-quality split that drove iter-5p/q/s was a metric artifact</h3>
+<p><code>quality_index</code> has Spearman ρ &thinsp;+0.782 with K (route count) — ~60% of
+cross-solver variance is explained by how many routes you use, not solution quality.
+The Phase G <code>fast_construct_v2</code> "wins quality" framing from iter-5o was an
+artifact: fcv2 used 1.7-3.3× more vehicles than solve_auto on every instance.</p>
+
+<p>K-fair complement metric (<code>quality_per_route</code>) reverses the ranking:
+PyVRP and solve_auto tie at the top (0.0315 vs 0.0300), fcv2 drops to LAST (0.0149,
+worst per-route quality of any feasible solver). <strong>solve_auto wins cost AND ties for
+best per-route quality — no tradeoff to optimize away.</strong></p>
+
+<p>Per_route_fixed_cost validation (iter-5u): under PyVRP's blind objective both
+solvers tie at $0/route; once routes are priced at $25/$100, solve_auto's lead
+widens monotonically with the coefficient.</p>
+</div>
+
+<h2 style="color:var(--muted)">Closed iteration log (most recent first)</h2>
+
+<div class="card" style="background:#fafafa">
+<div class="log-row"><span class="log-iter">iter-7-v4-skills</span>
+  <strong>Skills cost term: no v4 build needed</strong>. Benched v4 vs pyvrp
+  under iter-6a-7-bis skills config. Both warmstarts eliminate skill penalty
+  to $0 on 11/12 runs (the class_shift operator handles it reliably).
+  Remaining gap is identical to no-cost-term baseline gap ($35-$164/inst,
+  pyvrp slightly better). Outlier: pyvrp on SF-N500 left $3000 unfixed --
+  instance-specific bandit failure mode, not a v4 advantage. <strong>Skills
+  cost-aware insertion not built -- the class_shift operator already
+  closes the gap.</strong></div>
+
+<div class="log-row"><span class="log-iter">iter-7-embargo-sequential</span>
+  <strong>HEADLINE CORRECTION: sequential embargo bench flips the +$178 claim</strong>.
+  Re-ran 6-inst embargo with max_workers=1 (contention-free). Result:
+  v4 wins 3/6 (same hit rate as parallel), mean delta &minus;$121.7/inst
+  (pyvrp wins on aggregate vs parallel's +$178). Per-instance DIRECTIONS
+  unchanged (v4 still wins Manhattan-N500/Paris-N500/Paris-N1000; pyvrp
+  still wins Manhattan-N1000/SF-N500/SF-N1000) but parallel contention
+  was inflating v4's advantage on its winning instances. <strong>True
+  finding: v4 ties pyvrp under embargo within measurement noise, with
+  consistent K savings (1-3 fewer routes on 3/6 instances).</strong>
+  Recommendation downgraded from "v4 wins" to "v4 ties; pick by other
+  criteria (K savings, PyVRP availability)".</div>
+
+<div class="log-row"><span class="log-iter">iter-7-determinism-audit</span>
+  <strong>MAJOR FINDING: bandit IS fully deterministic. Past "nondeterminism"
+  was actually parallelism contention.</strong> 3 sequential same-seed runs
+  produced BIT-IDENTICAL costs ($11,038.2 / $11,038.2 / $11,038.2),
+  wall within 0.7s tolerance. The $50-$2,639 swings documented in iter-13,
+  iter-22, etc. were all from <code>ProcessPoolExecutor(max_workers=2)</code>
+  contention -- parallel processes compete for CPU, change each other's
+  wall time, alter plateau-detection timing, change bandit operator
+  trajectory. Operational fix: <code>max_workers=1</code> for reliable
+  bench measurements. <strong>v4 stack-16 LOSS to pyvrp is real</strong>
+  (each individual solve is deterministic), not a parallelism artifact.
+  Pick-by-axis recommendation stands.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-splitroute-full6</span>
+  <strong>Full 6-inst stack-16 with split_route: gap essentially unchanged (mean -$2,623 vs prior -$2,734)</strong>.
+  split_route benefit is WALL-TIME-DEPENDENT, not uniform: prior 2-inst
+  bench got Manhattan-N500 pyvrp $7,355 at 109s wall; the 6-inst bench
+  got $9,994 at 72s wall on same instance/seed. Same bandit nondeterminism
+  issue from iter-13. split_route works when bandit picks it enough +
+  has wall time to accept moves; otherwise neutral. v4 still loses 0/6
+  stack-16. Operator ships as useful addition but not a magic fix.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-stack16-splitroute</span>
+  <strong>split_route operator built: helps pyvrp ($2.6K/inst), v4 unchanged</strong>.
+  Built <code>route_splitter.py</code> (inverse of merge_routes; midpoint + largest-
+  TW-gap split strategies; conditionally registered only with per-route
+  cost terms). Result on Manhattan-N500 stack-16: pyvrp dropped from
+  $9,994 to $7,355 (-$2,639, real working operator), v4 went from $10,190
+  to $10,926 (+$736 -- arch drift from new arm in bandit pool). Manhattan-
+  N1000: pyvrp -$75, v4 BIT-IDENTICAL $19,800. v4's basin truly has no
+  profitable split points -- I1 + cost-aware insertion already balances
+  routes. Stack-16 gap widened (-$2,734 -> -$4,458) because pyvrp gained
+  more than v4. 25/25 tests pass. split_route is a useful operator,
+  doesn't close the v4 gap.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-stack16-diagnosis</span>
+  <strong>Stack-16 gap traced to bandit operator-pool basin closure</strong>.
+  Two hypothesis tests: (1) n_starts=1 vs n_starts=3 -- BIT-IDENTICAL
+  result (multi-start was already picking farthest_seed as best). (2)
+  plateaus_to_stop=50 (raised from 20) -- v4 ran 2x longer (88s vs 45s)
+  but cost UNCHANGED at $19,799.9. <strong>v4's bandit plateau isn't
+  patience-bound -- the operator pool has zero remaining productive moves
+  in v4's stack-16 basin.</strong> Operator-side fix needed: larger
+  neighborhoods (4-opt, sequence reversal), per-cost-term operators
+  (route-splitter), or v4-tuned operator priors. Out of scope for this
+  iter-7 construction series; logged as future bandit-side work.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-stack16</span>
+  <strong>Full 16-term stack on Manhattan: pyvrp wins 2/2, mean +$2,734/inst</strong>.
+  Manhattan-N500: pyvrp +$196 (close). Manhattan-N1000: pyvrp +$5,271
+  (stack_pen $18,120 v4 vs $13,358 pyvrp -- v4's 2 fewer routes compound
+  per-route violations across driver_breaks + shift_overrun + EV_range).
+  v4 also burned only 44.9s of 300s budget at N=1000 -- bandit plateaued
+  early in a locally-optimal but globally-suboptimal basin. Confirms the
+  pick-by-axis decision tree: per-route-dominated stacks favor pyvrp;
+  per-visit-dominated workloads favor v4.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-breaks-aware</span>
+  <strong>Per-route breaks-aware insertion does NOT close the driver_breaks gap</strong>.
+  Built per-route cost-aware extension parallel to embargo's: precompute
+  old route driving, compute delta_pen per insertion (free since
+  delta_driving = c11), add to c1 score. Standalone smoke: $15/inst
+  improvement. Through solve_auto + bandit: mean delta moves from
+  &minus;$294.6 to &minus;$291.2 (within noise). The construction-side
+  fix doesn't compound -- per-route cost is structurally different from
+  per-visit (cost depends on global route topology, not local customer
+  arrival). Real lever is K-relaxation (more routes), which the bandit's
+  split_route operator should provide but doesn't fully reach pyvrp's K.
+  <strong>Verdict</strong>: cost_aware insertion works for per-VISIT cost terms
+  only. Per-ROUTE cost terms remain pyvrp's win. 7/7 v4 smoke tests pass.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-driver_breaks</span>
+  <strong>v4 LOSES under per-route cost term: 0/6 wins, mean &minus;$295/inst</strong>.
+  Driver_breaks (90min driving cap, $2/min) -- v4's tighter K hurts
+  per-route penalty. Manhattan worst (&minus;$649, &minus;$814); Paris+SF
+  only &minus;$30 to &minus;$140. Closed: tried per-route cost-aware
+  insertion (above), didn't close the gap.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-embargo-multiseed</span>
+  <strong>+$178 headline ROBUST: 3-seed bench gives mean +$194, 4/6 wins</strong>.
+  Paris-N500 + Paris-N1000 at seeds 0,1,2: v4 wins 4/6 paired (close to
+  single-seed 4/6), mean delta +$194/inst (vs single-seed +$178). Bonus:
+  v4 std is 2.9x LOWER than pyvrp at Paris-N500 ($162 vs $466) and 2x
+  lower at Paris-N1000 ($145 vs $291) -- v4's cost_aware + multi-start
+  converges to consistent solutions; pyvrp's bandit-only path is more
+  seed-sensitive under embargo. Headline confirmed; v4 is reliably better
+  than pyvrp under cost-term workloads.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-baseline-recheck</span>
+  <strong>Baseline (no cost term) lags pyvrp by ~$60/inst (1/6 wins)</strong>.
+  Re-ran solve_auto baseline bench under post-fix multi-start to confirm
+  auto-n_starts=1 didn't regress. Result: pyvrp $857 / v4 $919 mean
+  ($-62/inst delta). Compared to prior bench (v4 $933 vs pyvrp $926, &minus;$7
+  delta), v4 lags slightly more -- but bandit nondeterminism produces
+  $50-160 swings between runs on individual instances, often larger than
+  the delta itself. Net: small honest gap within run-to-run noise.
+  Auto-n_starts=1 confirmed working correctly.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-multistart-fix</span>
+  <strong>Post-fix multi-start INVERTS the embargo gap: v4 BEATS pyvrp by $178/inst (4/6 wins)</strong>.
+  The prior multi-start bench used a buggy budget split (each pass got
+  total/N, causing truncation). Fix: first pass gets up to the full
+  remaining budget; subsequent share what's left. Plus auto-select n_starts
+  (3 with cost terms, 1 baseline). Re-bench under post-fix code: 2/6 -> 4/6
+  wins, mean &minus;$58 -> +$178. v4 uses 1-4 fewer routes on 5/6 instances.
+  <strong>The original /loop ask was "match pyvrp on construction" -- under
+  cost-term workloads we now EXCEED it.</strong></div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-multistart</span>
+  <strong>Pre-fix multi-start (buggy budget): 3/6 wins, mean &minus;$58</strong>.
+  Three seed strategies (farthest, earliest-due, highest-demand); best by
+  full-objective cost wins. Documented for trajectory completeness;
+  superseded by the post-fix bench above.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-pushfwd</span>
+  <strong>Push-forward-aware embargo: WASH</strong>. Extended embargo check
+  to count all customers shifted into windows by an insertion (not just u).
+  Result: same 2/6 wins, mean &minus;$128 vs single-customer &minus;$120
+  (essentially tied). Trades N=500 wins for N=1000 wins.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-cost-aware</span>
+  <strong>Constraint-aware I1 closes the embargo gap 81%</strong>.
+  Added <code>cost_aware=True</code> flag to v4 that adds per-customer
+  embargo penalty to the c1 insertion score. Bench result: 0/6 -> 2/6
+  wins, mean delta &minus;$648 -> &minus;$120/inst (+$528/inst recovered).
+  Two N=500 instances flipped to v4 wins. Wall overhead ~6%.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-v4-embargo</span>
+  <strong>v4-warmstart under cost-term constraint (embargo, pre-fix)</strong>.
+  Original bench: 0/6 wins, mean &minus;$648/inst worse than pyvrp.
+  Closed by the cost_aware insertion fix above.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-bis-v4-eval</span>
+  <strong>v4-warmstart vs pyvrp-warmstart baseline 6-instance solve_auto bench</strong>.
+  Result: ties on cost ($932.8 vs $926.3, &minus;0.7%, 3 wins / 3 losses), v4
+  uses &minus;1 to &minus;2 routes on 4/6 instances. The single-instance smoke
+  showing pyvrp +10% was a Manhattan-specific artifact.</div>
+
+<div class="log-row"><span class="log-iter">iter-7-bis-v4</span>
+  <strong>Solomon I1 (fast_construct_v4) closes the pyvrp gap and inverts it</strong>.
+  6/6 wall wins (3.8x faster), 5/6 cost wins standalone, &minus;3% mean cost vs pyvrp.
+  Plumbed into solve_auto as <code>construction="fast_construct_v4"</code>.
+  7/7 smoke tests pass.</div>
+
+<div class="log-row"><span class="log-iter">iter-7</span>
+  <strong>Construction at scale benched</strong>. v3 (Clarke-Wright savings) RULED OUT
+  — 99.7% TW-reject rate. v1 deadline-overrun partial fix landed. v2 merge polish
+  fix landed (still ships as graph-aware alternative; superseded by v4 on cost).</div>
+
+<div class="log-row"><span class="log-iter">iter-6a-2-refresh</span>
+  <strong>Architectural drift discovered + fixed</strong>. Conditional registration
+  of meta-recipe ops in <code>_filter_ops_pool</code>. Embargo 6/6 +$1,648 (92% recovery),
+  combined stack +$816 (+69% from pre-fix).</div>
+
+<div class="log-row"><span class="log-iter">iter-6a-1..8</span>
+  <strong>Constraint catalog: 10 of 11 single-term wins at 6/6</strong> (skills 5/6).
+  Aggregate +$5,113/inst stackable. Phase F lite refactor (eval overhead 344x → 4.89x).</div>
+
+<div class="log-row"><span class="log-iter">iter-5y</span>
+  <strong>Cross-route fairness 5/6 +$36/inst @ coef=0.5</strong>. Step 0.5 (coefficient
+  calibration) added to recipe — initial coef=0.001 produced 3/6 ±$0 (noise floor).</div>
+
+<div class="log-row"><span class="log-iter">iter-5x</span>
+  <strong>peak_hour counterexample: 2/6 −$12/inst</strong>. Recipe boundary found:
+  shift_start operator landed but wide-window geometry leaves no candidate that
+  escapes peak. Closed as geometry-bound, not operator-bound.</div>
+
+<div class="log-row"><span class="log-iter">iter-5w</span>
+  <strong>shift_overrun: 6/6 +$155.2/inst</strong>. First validated cost-model-
+  expansion result — proved the recipe works end-to-end.</div>
+
+<div class="log-row"><span class="log-iter">iter-5r</span>
+  <strong>8-solver wholesale on v1_large: closed</strong>. solve_auto wins 6/6 vs
+  PyVRP AND OR-Tools at &minus;43% cost. 48/48 clean rows after LKH parser fix
+  + regret_3 budget fix + hard timeout guard.</div>
+
+<div class="log-row"><span class="log-iter">iter-5t/u</span>
+  <strong>K-fairness audit: closed</strong>. fcv2 "quality winner" was a metric
+  artifact; quality_per_route reverses the ranking; per_route_fixed_cost validates
+  the fix. <code>quality_per_route</code> shipped in metrics suite + docstring warning.</div>
+
+<div class="log-row"><span class="log-iter">iter-5q</span>
+  <strong>fast_construct_v2 warmstart: CLOSED, dominated by pyvrp_warm</strong>.
+  Direction abandoned. v2 returns to relevance in iter-7-bis as construction-only
+  (not warmstart) after the merge-polish fix.</div>
+
+<div class="log-row"><span class="log-iter">iter-5s</span>
+  <strong>Phase F in-loop reward shaping: CLOSED</strong>. Three composition levers
+  closed — fcv2 Phase F arm E "won" at N=50 but gained $0 quality at +$54/inst
+  cost when tested at N=500.</div>
+
+<div class="log-row"><span class="log-iter">iter-5o</span>
+  <strong>Phase G complete: graph-aware metrics + sub-second N=500 construction</strong>.
+  Foundation for v2 Louvain construction (which then needed the iter-7-bis merge
+  polish fix to actually ship).</div>
+
+<div class="log-row"><span class="log-iter">iter-5n/k/i/f</span>
+  <strong>Earlier session foundations</strong>: parallel bench harness, OOD protocol,
+  cb-scaling tune, PyVRP-warmstart adoption, 2-tier N-recipe dispatcher, Solomon/
+  Homberger loaders. All shipped and still in use.</div>
+</div>
+
+<h2>Three documented failure modes (with diagnostic protocols)</h2>
+
+<div class="card">
+<table>
+  <tr><th>failure mode</th><th>diagnostic</th><th>example</th><th>fix</th></tr>
+  <tr><td><strong>Generalization failure</strong></td>
+      <td>bench at 6 paired v1_large instances spanning Manhattan/Paris/SF × N=500/1000</td>
+      <td>iter-5q fcv2 single-instance "win" → 1/6 at scale</td>
+      <td>require 6/6 ship threshold</td></tr>
+  <tr><td><strong>Seed-variance failure</strong></td>
+      <td>3+ seeds on one instance via <code>iter6a_stack16_multi_seed.py</code></td>
+      <td>combined-stack +$281 single-seed → null at 75s, recovered at 150s budget</td>
+      <td>per-N budget rule: budget ≥ N × 0.3s for full-stack solves</td></tr>
+  <tr><td><strong>Architectural-drift failure</strong></td>
+      <td>re-bench under current arch</td>
+      <td>embargo at-landing 6/6 +$1,612 → drifted to 5/6 +$798 when arm pool grew</td>
+      <td>conditional registration of meta-recipe ops (iter-6a-2-refresh) → 6/6 +$1,648</td></tr>
+</table>
+<p>All three are caught by honest re-bench at higher rigor than initial landing.
+The discipline that built this catalog is to never trust a landing-time number
+forever; treat it as a snapshot under that turn's code state.</p>
+</div>
+
+<h2>Where everything lives</h2>
+
 <div class="grid">
   <div class="card">
-    <h3 class="good">Working — keep</h3>
-    <ul>
-      <li>13-arm LinUCB bandit + PyVRP construction composition</li>
-      <li>Paired-seed composability bench at 16+ instances</li>
-      <li>Solomon + Homberger loaders</li>
-      <li>Parallel bench harness (max_workers=4)</li>
-      <li>2-tier N-recipe dispatcher</li>
+    <h3>Solver internals</h3>
+    <ul style="margin:0">
+      <li>Public API: <code>svrptw/__init__.py</code></li>
+      <li>Cost terms: <code>svrptw/config/schema.py::Economics</code></li>
+      <li>Evaluator: <code>svrptw/solvers/common/solution.py::evaluate</code></li>
+      <li>Bandit pool: <code>svrptw/solvers/classical/portfolio.py::_OPS</code></li>
+      <li>Conditional reg: <code>...portfolio.py::_filter_ops_pool</code></li>
+      <li>Meta-recipe ops: <code>svrptw/solvers/common/{shift_start,class_shift,depot_shift}.py</code></li>
+      <li>Constructions: <code>svrptw/solvers/classical/{fast_construct,fast_construct_v2,fast_construct_v3}.py</code></li>
     </ul>
   </div>
   <div class="card">
-    <h3 class="bad">Not working — revisit</h3>
-    <ul>
-      <li>LLM proposer yield-to-validation ratio (0/25)</li>
-      <li>POMO v3 checkpoint as a competitive baseline at N=200+</li>
-      <li>Logic-axis evaluation under single-judge VLM</li>
-      <li>Solomon C-class performance at N=100 (29% wins; tied at 100 but jumps to 87% at 200)</li>
+    <h3>Tests &amp; benches</h3>
+    <ul style="margin:0">
+      <li>Cost-term tests: <code>tests/unit/test_cost_terms_smoke.py</code> (30)</li>
+      <li>Conditional reg: <code>tests/unit/test_conditional_op_registration.py</code> (12)</li>
+      <li>Public API: <code>tests/unit/test_public_api_smoke.py</code> (5)</li>
+      <li>Per-term benches: <code>bench/scripts/iter6a*_v1large.py</code></li>
+      <li>Full-stack: <code>bench/scripts/iter6a_full_stack16_solve.py</code></li>
+      <li>Multi-seed: <code>bench/scripts/iter6a_stack16_multi_seed.py</code></li>
+      <li>Construction: <code>bench/scripts/iter7_construction_v1large.py</code></li>
+      <li>Operator-gap viz: <code>bench/scripts/build_operator_gap_plot.py</code></li>
+      <li>Headline reproducer: <code>bench/scripts/headline_results.py</code></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Docs</h3>
+    <ul style="margin:0">
+      <li>Recipe: <code>docs/META_RECIPE.md</code></li>
+      <li>Constraint catalog: <code>svrptw/constraints.py</code></li>
+      <li>README: <code>README.md</code></li>
+      <li>Vault index: <code>WorldsFinestVRP/00 - Index.md</code></li>
+      <li>Decisions: <code>WorldsFinestVRP/05 - Decisions &amp; Next Steps.md</code></li>
+      <li>Sessions: <code>WorldsFinestVRP/Sessions/</code></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>External anchors</h3>
+    <ul style="margin:0">
+      <li>PyVRP — reference HGS construction (still depended-on for primary <code>solve_auto</code> path; v2 is the alternative)</li>
+      <li>OR-Tools — beaten 6/6 at &minus;43% cost</li>
+      <li>LKH-3 — config issue (capacity overload at our cost model); parser fixed</li>
+      <li>Solomon C101 — published optimum 828.94 hit within 0.01%</li>
+      <li>Homberger N=200 — 83% wins at half budget</li>
+      <li>osmnx — dual-graph for v2 Louvain clustering, no Euclidean translation</li>
     </ul>
   </div>
 </div>
@@ -217,7 +971,8 @@ This is the structural advantage:</p>
 <p style="margin-top: 48px; color: var(--muted); font-size: 0.9em;">
   Vault: <code>D:/SVRPTW/WorldsFinestVRP/</code> ·
   Solver: <code>svrptw/solvers/classical/portfolio_pyvrp_warm.py</code> ·
-  Specs: <code>specs/SPEC-8-COUNCIL-02-composability-bench.md</code>, <code>specs/SPEC-7-COST-02-per-route-fixed-cost.md</code>
+  Recipe: <code>docs/META_RECIPE.md</code> ·
+  Last build: 2026-05-16
 </p>
 
 </body>

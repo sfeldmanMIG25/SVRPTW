@@ -32,7 +32,15 @@ The N=500 row used the pre-tuning dispatcher (vanilla path); the recipe has sinc
 | Solomon N=100, warm@15 vs PyVRP@30 | 56 | 29/56 (52%) | 15 | +$40 | Half-budget |
 | Solomon N=100, matched 30s | 56 | **35/56 (63%)** | 8 | **+$42** | C class 29%, R 83%, RC 69% |
 | **Homberger N=200, warm@30 vs PyVRP@60** | **24** | **20/24 (83%)** | **4** | **+$204** | C 87%, R 75%, RC 87% |
-| Homberger N=400 | 24 | (in flight) | | | |
+| Homberger N=400, warm@60 vs PyVRP@120 | 24 | 7/24 (29%) | 17 | **-$283** | **REVERSAL**: C 12.5%, R 25%, RC 50% |
+
+### Homberger N=400 reversal — honest finding
+
+The architectural advantage peaks at N=200 and reverses at N=400. PyVRP wins 17/24 (71%) at the larger scale, with the largest single-instance losses on R class (random geography, up to −$3758/instance).
+
+**Likely cause**: `pyvrp_construction_budget=8s` is undersized for N=400. PyVRP@120s converges fully; warm spends 8s on construction + 52s on bandit refinement, but the bandit can't make up the gap.
+
+**Open question for next turn**: should the dispatcher (a) scale `cb` with N (e.g. `cb = 8 + 0.05·N`), or (b) re-introduce a `warmstart_high` cutoff so N≥400 falls back to vanilla? Bench at N=400 with both variants to decide.
 
 **C101 sanity anchor**: warm@15 achieved total_dist = 828.93 vs published optimum 828.94 (gap 0.01%).
 

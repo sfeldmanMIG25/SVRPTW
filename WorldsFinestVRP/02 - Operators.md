@@ -44,7 +44,9 @@ The single change that produced real value this session:
 
 **`portfolio_pyvrp_warm`** = PyVRP@8s construction → portfolio LinUCB bandit @ remaining budget.
 
-This is **not a new operator** — it's swapping the warmstart source. Vanilla portfolio warms with `auction_gart`'s construction; the variant warms with PyVRP's. At N≥100, this single swap flips a +$78 loss vs PyVRP@60s into a +$110 win. Tuned with `pyvrp_construction_budget=8` and `plateaus_to_stop=20` (default raised from 6 because the bandit refining a PyVRP start plateaus more easily).
+This is **not a new operator** — it's swapping the warmstart source. Vanilla portfolio warms with `auction_gart`'s construction; the variant warms with PyVRP's. At N≥100 on OSM-asymmetric and Solomon/Homberger N≤200, this single swap flips a +$78 loss vs PyVRP@60s into a +$110 win. Tuned with `pyvrp_construction_budget=8` and `plateaus_to_stop=20` (default raised from 6 because the bandit refining a PyVRP start plateaus more easily).
+
+**Known limit (Homberger N=400 reversal)**: at N=400 on symmetric-Euclidean academic instances, warm wins only 7/24 = 29%, mean -$283. The fixed 8s construction is undersized for N=400. Next iteration: scale `pyvrp_construction_budget` with N, or re-introduce a vanilla fallback at very large N.
 
 ## Variants tried (negative or partial results)
 

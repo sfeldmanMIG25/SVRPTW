@@ -1,0 +1,492 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>WorldsFinestVRP — live</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    :root {
+      --bg: #0f1115; --panel: #161a22; --border: #2b313d;
+      --fg: #e6e9ef; --mute: #97a3b6; --ok: #6ee7b7; --warn: #fbbf24; --bad: #f87171;
+      --accent: #60a5fa;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+                 font: 13px/1.45 ui-monospace, "JetBrains Mono", Consolas, monospace; }
+    header { padding: 12px 18px; border-bottom: 1px solid var(--border);
+             display: flex; align-items: center; justify-content: space-between; }
+    header h1 { margin: 0; font-size: 14px; font-weight: 600; letter-spacing: .04em; }
+    header .meta { color: var(--mute); font-size: 12px; }
+    main { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
+    .panel h2 { margin: 0 0 10px; font-size: 12px; font-weight: 600; color: var(--mute);
+                text-transform: uppercase; letter-spacing: .08em; }
+</style>
+</head>
+<style>
+    .stage { font-size: 13px; color: var(--accent); }
+    .bench-row { display: flex; align-items: center; gap: 10px; padding: 6px 0;
+                 border-bottom: 1px dashed var(--border); }
+    .bench-row:last-child { border-bottom: 0; }
+    .bench-name { flex: 0 0 200px; }
+    .bench-bar { flex: 1; background: #222633; height: 10px; border-radius: 4px; overflow: hidden; }
+    .bench-bar > span { display: block; height: 100%; background: var(--accent); transition: width .4s; }
+    .bench-pct { flex: 0 0 60px; text-align: right; color: var(--mute); }
+    .stream-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+    .snap { background: #0b0d12; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+    .snap img { width: 100%; display: block; aspect-ratio: 1/1; object-fit: contain; background: #000; }
+    .snap .lbl { padding: 4px 6px; font-size: 11px; color: var(--mute);
+                 display: flex; justify-content: space-between; }
+    .judges { display: flex; flex-direction: column; gap: 6px; }
+    .judge { display: grid; grid-template-columns: 160px 60px 60px 1fr; gap: 8px;
+             padding: 4px 6px; background: #0b0d12; border-radius: 4px; align-items: baseline; }
+    .score { font-weight: 700; }
+    .score.ok { color: var(--ok); } .score.bad { color: var(--bad); } .score.warn { color: var(--warn); }
+    .dissent { color: var(--warn); font-size: 11px; }
+    .log { background: #0a0c10; padding: 8px 10px; border-radius: 4px; max-height: 280px;
+           overflow-y: auto; white-space: pre-wrap; font-size: 11.5px; color: var(--mute); }
+    .log .line { padding: 1px 0; }
+    .full { grid-column: 1 / -1; }
+    .chart-row { display: flex; align-items: center; gap: 10px; padding: 6px 0;
+                 border-bottom: 1px dashed var(--border); }
+    .chart-row:last-child { border-bottom: 0; }
+    .chart-name { flex: 0 0 220px; font-size: 11px; color: var(--mute);
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .chart-svg { flex: 1; height: 36px; background: #0a0c10; border-radius: 3px; }
+    .chart-meta { flex: 0 0 130px; text-align: right; font-size: 11px; color: var(--mute); }
+    .iframe-wrap { width: 100%; height: 720px; border: 1px solid var(--border);
+                   border-radius: 4px; background: white; overflow: hidden; }
+    .iframe-wrap iframe { width: 100%; height: 100%; border: 0; background: white; }
+
+    /* SPEC-WEBUI-B0pp: top action bar, sticky under header. */
+    .actionbar {
+      position: sticky; top: 0; z-index: 50;
+      display: flex; align-items: center; gap: 6px; padding: 8px 14px;
+      background: var(--panel); border-bottom: 1px solid var(--border);
+    }
+    .actionbar button {
+      background: #0b0d12; color: var(--fg); border: 1px solid var(--border);
+      border-radius: 4px; padding: 5px 10px; font: inherit; cursor: pointer;
+    }
+    .actionbar button:hover { border-color: var(--accent); color: var(--accent); }
+    .actionbar button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .actionbar .spacer { flex: 1; }
+    .actionbar .group-sep {
+      width: 1px; height: 18px; background: var(--border); margin: 0 4px;
+    }
+
+    /* Inline run-bench dialog. */
+    .dialog-bg {
+      position: fixed; inset: 0; background: rgba(0,0,0,.45);
+      display: none; z-index: 100; align-items: center; justify-content: center;
+    }
+    .dialog-bg.show { display: flex; }
+    .dialog {
+      background: var(--panel); border: 1px solid var(--border);
+      border-radius: 6px; padding: 16px; width: min(440px, 90vw);
+    }
+    .dialog h3 { margin: 0 0 10px; font-size: 13px; color: var(--accent); }
+    .dialog label { display: block; font-size: 11px; color: var(--mute);
+                    margin: 8px 0 3px; text-transform: uppercase; letter-spacing: .06em; }
+    .dialog input, .dialog select {
+      width: 100%; background: #0b0d12; color: var(--fg);
+      border: 1px solid var(--border); border-radius: 4px;
+      padding: 5px 7px; font: inherit;
+    }
+    .dialog .actions {
+      display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px;
+    }
+    .dialog button {
+      background: #0b0d12; color: var(--fg); border: 1px solid var(--border);
+      border-radius: 4px; padding: 5px 12px; font: inherit; cursor: pointer;
+    }
+    .dialog button.primary { color: var(--accent); border-color: var(--accent); }
+
+    /* Toast. */
+    .toast {
+      position: fixed; top: 12px; right: 14px; z-index: 200;
+      max-width: 360px; padding: 10px 14px;
+      background: var(--panel); border-radius: 6px;
+      border: 1px solid var(--border); font-size: 12px;
+      box-shadow: 0 4px 18px rgba(0,0,0,.5);
+      opacity: 0; transition: opacity .25s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; }
+    .toast.ok  { border-color: var(--ok);  color: var(--ok); }
+    .toast.bad { border-color: var(--bad); color: var(--bad); }
+  </style>
+<body>
+  <header>
+    <h1>WORLDS&nbsp;FINEST&nbsp;VRP &mdash; live</h1>
+    <div class="meta">
+      stage: <span id="stage" class="stage">idle</span>
+      &middot; <span id="stage-msg"></span>
+      &middot; uptime: <span id="uptime">0s</span>
+      &middot; <a href="/reports" style="color:var(--accent);text-decoration:none">reports&nbsp;&rarr;</a>
+    </div>
+  </header>
+  <div class="actionbar">
+    <button id="btn-reset"      title="POST /reset (drop bus singleton)">Reset bus</button>
+    <button id="btn-clear-snap" title="POST /control/clear-snapshots">Clear snapshots</button>
+    <span class="group-sep"></span>
+    <button id="btn-run"  title="Spawn a whitelisted bench script">&#9654; Run bench&hellip;</button>
+    <button id="btn-stop" title="Stop the running bench" disabled>&#9632; Stop</button>
+    <span class="group-sep"></span>
+    <button id="btn-viewer" title="Open snapshot viewer in a new tab">&#9871; Viewer</button>
+    <button id="btn-report" title="Touch + open Progress_Report.html">&#128196; Publish report</button>
+    <span class="spacer"></span>
+    <span id="run-status" style="color:var(--mute);font-size:11px"></span>
+  </div>
+
+  <div id="dialog-bg" class="dialog-bg" role="dialog" aria-modal="true">
+    <div class="dialog">
+      <h3>Run a bench</h3>
+      <label for="dlg-script">script</label>
+      <select id="dlg-script">
+        <option value="cb_scaled_rebench">cb_scaled_rebench</option>
+        <option value="v1_leaderboard_solve_auto">v1_leaderboard_solve_auto</option>
+      </select>
+      <label for="dlg-workers">workers</label>
+      <input id="dlg-workers" type="number" min="1" max="8" value="4"/>
+      <label for="dlg-extra">extra args (whitelisted only)</label>
+      <input id="dlg-extra" type="text" placeholder="--include v1_ood"/>
+      <div class="actions">
+        <button id="dlg-cancel">Cancel</button>
+        <button id="dlg-start" class="primary">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <main>
+    <section class="panel"><h2>Agents</h2><div id="agents">no agents tracked yet</div></section>
+    <section class="panel"><h2>Bench progress</h2><div id="benches">no benches running</div></section>
+    <section class="panel full"><h2>Latest snapshots</h2><div id="snapshots" class="stream-grid">no snapshots yet</div></section>
+    <section class="panel"><h2>VLM judge panel</h2><div id="judges" class="judges">no pairs judged yet</div></section>
+    <section class="panel"><h2>Log tail</h2><div id="log" class="log"></div></section>
+    <section class="panel full"><h2>Cost over iteration (per stream)</h2><div id="charts">no series yet &mdash; run a bench with --webui to see live curves</div></section>
+    <section class="panel full"><h2>Current visualization style</h2>
+      <div id="current-vis">no snapshot yet -- run a render to populate this</div>
+    </section>
+    <section class="panel full"><h2>Progress report (live)</h2>
+      <div class="iframe-wrap"><iframe src="/reports/progress" loading="lazy"></iframe></div>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fmtAge = (ts) => {
+      const d = Math.max(0, (Date.now()/1000) - ts);
+      if (d < 60) return d.toFixed(1) + "s ago";
+      if (d < 3600) return (d/60).toFixed(1) + "m ago";
+      return (d/3600).toFixed(1) + "h ago";
+    };
+    const fmtUptime = (s) => {
+      if (s < 60) return s.toFixed(0) + "s";
+      if (s < 3600) return (s/60).toFixed(1) + "m";
+      return (s/3600).toFixed(1) + "h";
+    };
+    const scoreClass = (v) => {
+      if (v == null) return "warn";
+      if (v >= 0.7) return "ok";
+      if (v <= 0.3) return "bad";
+      return "warn";
+    };
+
+    function renderAgents(a) {
+      const names = Object.keys(a);
+      if (!names.length) return "<em>no agents tracked yet</em>";
+      const now = Date.now() / 1000;
+      const statusColor = (s) => s === "completed" ? "var(--ok)"
+        : s === "failed"    ? "var(--bad)"
+        : s === "running"   ? "var(--accent)"
+        : "var(--mute)";
+      return names.sort().map(n => {
+        const ag = a[n];
+        const elapsed = (now - (ag.started_at || now));
+        const pct = ag.progress != null ? (100 * ag.progress) : null;
+        const bar = (pct != null)
+          ? `<div class="bench-bar"><span style="width:${pct.toFixed(1)}%"></span></div>
+             <div class="bench-pct">${pct.toFixed(0)}%</div>`
+          : `<div class="bench-bar"><span style="width:0%"></span></div>
+             <div class="bench-pct" style="color:var(--mute)">&mdash;</div>`;
+        const eta = ag.eta_seconds != null
+          ? ` &middot; eta ${fmtUptime(ag.eta_seconds)}` : "";
+        return `<div class="bench-row">
+          <div class="bench-name">
+            <span style="color:${statusColor(ag.status)}">&#9679;</span>
+            ${n} <small style="color:var(--mute)">${ag.status}</small>
+          </div>
+          ${bar}
+          <div class="bench-pct">${fmtUptime(elapsed)} elapsed${eta}</div>
+        </div>
+        ${ag.summary ? `<div style="font-size:11px;color:var(--mute);padding:0 0 4px 14px">${ag.summary.slice(0,200)}</div>` : ""}`;
+      }).join("");
+    }
+
+    function renderBenches(b) {
+      const names = Object.keys(b);
+      if (!names.length) return "<em>no benches running</em>";
+      return names.sort().map(n => {
+        const p = b[n], pct = p.total ? (100 * p.completed / p.total) : 0;
+        const eta = p.eta_seconds != null ? ` &middot; eta ${fmtUptime(p.eta_seconds)}` : "";
+        return `<div class="bench-row">
+          <div class="bench-name">${n}</div>
+          <div class="bench-bar"><span style="width:${pct.toFixed(1)}%"></span></div>
+          <div class="bench-pct">${p.completed}/${p.total}${eta}</div>
+        </div>`;
+      }).join("");
+    }
+
+    function renderSnapshots(streams) {
+      const allSnaps = [];
+      for (const [name, snaps] of Object.entries(streams)) {
+        for (const s of snaps) allSnaps.push({...s, _stream: name});
+      }
+      if (!allSnaps.length) return "<em>no snapshots yet</em>";
+      // newest first, cap at ~24 tiles
+      allSnaps.sort((a, b) => b.ts - a.ts);
+      return allSnaps.slice(0, 24).map(s => {
+        const cost = s.meta?.cost != null ? `cost=${(+s.meta.cost).toFixed(1)}` : "";
+        return `<div class="snap" title="${s.label}">
+          <img src="/snapshots/${s.rel_path.replace(/^\/+/,'')}" alt="${s.label}" loading="lazy"/>
+          <div class="lbl"><span>${s._stream}: ${s.label}</span><span>${fmtAge(s.ts)} ${cost}</span></div>
+        </div>`;
+      }).join("");
+    }
+
+    function renderJudges(j) {
+      const pids = Object.keys(j);
+      if (!pids.length) return "<em>no pairs judged yet</em>";
+      return pids.sort((a,b) => (j[b].ts - j[a].ts)).map(pid => {
+        const panel = j[pid];
+        const head = `<div style="font-weight:600;color:var(--accent);margin-top:8px;border-top:1px solid var(--border);padding-top:6px">${pid}</div>`;
+        const cons = panel.consensus || {};
+        // Show the actual images judges saw, side-by-side, at top of panel
+        let imgs = "";
+        if (cons.image_a_url || cons.image_b_url) {
+          imgs = `<div style="display:flex;gap:6px;padding:4px 0">
+            ${cons.image_a_url ? `<div style="flex:1"><div style="font-size:10px;color:var(--mute)">A: solve_auto</div><img src="${cons.image_a_url}" style="width:100%;border:1px solid var(--border);border-radius:3px;background:#fff" loading="lazy"/></div>` : ""}
+            ${cons.image_b_url ? `<div style="flex:1"><div style="font-size:10px;color:var(--mute)">B: PyVRP</div><img src="${cons.image_b_url}" style="width:100%;border:1px solid var(--border);border-radius:3px;background:#fff" loading="lazy"/></div>` : ""}
+          </div>`;
+        }
+        // Per-call rows (show run_index when present so consistency is visible)
+        const rows = panel.judges.map(v => {
+          const cls = scoreClass(v.score);
+          const sc = v.score != null ? v.score.toFixed(2) : "ERR";
+          const ridx = (v.run_index !== undefined) ? `r${v.run_index}` : "";
+          const wc = v.weight_class || v.tier || "";
+          const err = v.error ? `<span style="color:var(--bad)">${v.error.slice(0,80)}</span>` : (v.rationale||"").slice(0,160);
+          return `<div class="judge"><span style="font-size:10px">${(v.model||v.judge||"").split("/").pop()} ${ridx}</span>
+            <span class="score ${cls}">${sc}</span>
+            <span style="color:var(--mute);font-size:10px">${wc}</span>
+            <span style="color:var(--mute);font-size:10px">${err}</span></div>`;
+        }).join("");
+        // Consistency badge: μ ± σ, range across non-failed calls
+        let badge = "";
+        if (cons.score != null) {
+          const sd = (cons.stdev != null) ? cons.stdev.toFixed(3) : "—";
+          const rng = (cons.score_range != null) ? cons.score_range.toFixed(2) : "—";
+          const ok = cons.stdev != null && cons.stdev < 0.10;
+          badge = `<div class="dissent" style="color:${ok?'var(--ok)':'var(--warn)'}">μ=${cons.score.toFixed(3)}  σ=${sd}  range=${rng}  n=${cons.n_responded}/${cons.n_responded+cons.n_failed} ${ok?'CONSISTENT':'NOISY'}</div>`;
+        } else if (cons.n_failed) {
+          badge = `<div class="dissent" style="color:var(--bad)">all ${cons.n_failed} calls FAILED</div>`;
+        }
+        return head + imgs + rows + badge;
+      }).join("");
+    }
+
+    function renderCharts(series) {
+      const names = Object.keys(series);
+      if (!names.length) return "<em>no series yet &mdash; run a bench with --webui to see live curves</em>";
+      const W = 600, H = 36, PAD = 4;
+      return names.sort().map(n => {
+        const pts = series[n] || [];
+        if (pts.length < 2) return `<div class="chart-row">
+          <div class="chart-name">${n}</div>
+          <svg class="chart-svg" viewBox="0 0 ${W} ${H}"></svg>
+          <div class="chart-meta">${pts.length} pts</div></div>`;
+        const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+        const xmin = Math.min(...xs), xmax = Math.max(...xs);
+        const ymin = Math.min(...ys), ymax = Math.max(...ys);
+        const xspan = (xmax - xmin) || 1, yspan = (ymax - ymin) || 1;
+        const sx = (x) => PAD + (W - 2 * PAD) * (x - xmin) / xspan;
+        // y is cost: lower = better; flip so good is at top
+        const sy = (y) => PAD + (H - 2 * PAD) * (y - ymin) / yspan;
+        const d = pts.map((p, i) => (i === 0 ? "M" : "L") +
+          `${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(" ");
+        const last = pts[pts.length - 1];
+        const trendColor = (last.y < pts[0].y) ? "var(--ok)" : "var(--warn)";
+        return `<div class="chart-row">
+          <div class="chart-name" title="${n}">${n}</div>
+          <svg class="chart-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+            <path d="${d}" stroke="${trendColor}" stroke-width="1.4" fill="none" />
+            <circle cx="${sx(last.x).toFixed(1)}" cy="${sy(last.y).toFixed(1)}" r="2" fill="${trendColor}" />
+          </svg>
+          <div class="chart-meta">${pts.length} pts &middot; cost ${last.y.toFixed(0)}</div>
+        </div>`;
+      }).join("");
+    }
+
+    function renderLog(lines) {
+      return lines.slice(-80).reverse().map(l =>
+        `<div class="line">${l.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</div>`
+      ).join("");
+    }
+
+    async function tick() {
+      try {
+        const r = await fetch("/status", {cache: "no-store"});
+        const s = await r.json();
+        $("stage").textContent = s.stage;
+        $("stage-msg").textContent = s.stage_msg || "";
+        $("uptime").textContent = fmtUptime(s.uptime_s);
+        $("agents").innerHTML = renderAgents(s.agents || {});
+        $("benches").innerHTML = renderBenches(s.bench || {});
+        $("snapshots").innerHTML = renderSnapshots(s.snapshots || {});
+        $("judges").innerHTML = renderJudges(s.judges || {});
+        $("log").innerHTML = renderLog(s.log || []);
+        $("charts").innerHTML = renderCharts(s.series || {});
+        // Most-recently-pushed snapshot across ALL streams -- shown big above the report.
+        const allSnaps = [];
+        for (const [stream, snaps] of Object.entries(s.snapshots || {})) {
+          for (const sn of snaps) allSnaps.push({...sn, _stream: stream});
+        }
+        if (allSnaps.length) {
+          allSnaps.sort((a,b)=>b.ts - a.ts);
+          const latest = allSnaps[0];
+          $("current-vis").innerHTML = `
+            <div style="display:flex;gap:14px;align-items:flex-start">
+              <img src="/snapshots/${latest.rel_path.replace(/^\/+/,'')}" style="max-height:520px;border:1px solid var(--border);border-radius:4px;background:white"/>
+              <div style="font-size:12px;color:var(--mute);min-width:220px">
+                <div style="color:var(--accent);font-weight:600">${latest.label}</div>
+                <div>stream: ${latest._stream}</div>
+                <div>${fmtAge(latest.ts)}</div>
+                ${latest.meta?.cost!=null?`<div>cost: ${(+latest.meta.cost).toFixed(1)}</div>`:""}
+                ${latest.meta?.n_routes!=null?`<div>routes: ${latest.meta.n_routes}</div>`:""}
+                ${latest.meta?.operator?`<div>operator: ${latest.meta.operator}</div>`:""}
+                ${latest.meta?.iteration!=null?`<div>iteration: ${latest.meta.iteration}</div>`:""}
+                <div style="margin-top:10px;color:var(--mute);font-size:11px">vehicle-id colors / road-routed / sector-aware metrics / arrows for direction / dim basemap / no text bias</div>
+              </div>
+            </div>`;
+        }
+      } catch (e) {
+        $("stage-msg").textContent = "fetch error: " + e.message;
+      }
+    }
+    tick();
+    setInterval(tick, 1500);
+
+    // ---- B0pp control surface ------------------------------------
+    let _toastTimer = null;
+    function toast(msg, kind /* "ok"|"bad"|"" */) {
+      const el = $("toast");
+      el.className = "toast show " + (kind || "");
+      el.textContent = msg;
+      if (_toastTimer) clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => { el.className = "toast"; }, 3000);
+    }
+
+    async function postJSON(url, body) {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: body == null ? "" : JSON.stringify(body),
+      });
+      let payload = null;
+      try { payload = await r.json(); } catch { payload = null; }
+      if (!r.ok) {
+        const txt = (payload && payload.error) || (await r.text().catch(() => r.statusText));
+        throw new Error(`HTTP ${r.status}: ${txt}`);
+      }
+      return payload;
+    }
+
+    // Track running scripts so we can toggle Stop / Run buttons.
+    const _runState = { running: {} /* {scriptName: pid} */ };
+    async function refreshControlList() {
+      try {
+        const r = await fetch("/control/list", {cache: "no-store"});
+        const data = await r.json();
+        const procs = (data && data.procs) || [];
+        const running = {};
+        for (const p of procs) {
+          if (p.returncode == null) running[p.name] = p.pid;
+        }
+        _runState.running = running;
+        const names = Object.keys(running);
+        $("btn-stop").disabled = (names.length === 0);
+        $("run-status").textContent = names.length
+          ? `running: ${names.join(", ")}`
+          : "";
+        // Disable the Run button if the currently-selected script is already running.
+        const sel = $("dlg-script").value;
+        // (button is in the dialog -- it's only relevant when dialog is open)
+      } catch {
+        // ignore
+      }
+    }
+    refreshControlList();
+    setInterval(refreshControlList, 2000);
+
+    // Reset bus.
+    $("btn-reset").onclick = async () => {
+      try { await postJSON("/reset", null); toast("bus reset", "ok"); }
+      catch (e) { toast(e.message, "bad"); }
+    };
+    // Clear snapshots.
+    $("btn-clear-snap").onclick = async () => {
+      try {
+        const r = await postJSON("/control/clear-snapshots", null);
+        toast(`cleared ${r.removed} snapshot(s)`, "ok");
+      } catch (e) { toast(e.message, "bad"); }
+    };
+    // Viewer.
+    $("btn-viewer").onclick = () => window.open("/viewer", "_blank");
+    // Publish report.
+    $("btn-report").onclick = async () => {
+      try {
+        const r = await postJSON("/control/build-report", null);
+        toast("report published", "ok");
+        if (r && r.report_url) window.open(r.report_url, "_blank");
+      } catch (e) { toast(e.message, "bad"); }
+    };
+    // Stop.
+    $("btn-stop").onclick = async () => {
+      const names = Object.keys(_runState.running);
+      if (!names.length) return;
+      const name = names[0]; // there's typically only one
+      try {
+        const r = await postJSON("/control/stop", {name});
+        toast(`stopped ${name} (rc=${r.returncode})`, "ok");
+        refreshControlList();
+      } catch (e) { toast(e.message, "bad"); }
+    };
+
+    // Run dialog.
+    const dlg = $("dialog-bg");
+    function openDialog() { dlg.classList.add("show"); }
+    function closeDialog() { dlg.classList.remove("show"); }
+    $("btn-run").onclick = openDialog;
+    $("dlg-cancel").onclick = closeDialog;
+    dlg.addEventListener("click", (e) => { if (e.target === dlg) closeDialog(); });
+    $("dlg-start").onclick = async () => {
+      const script = $("dlg-script").value;
+      const workers = parseInt($("dlg-workers").value || "4", 10);
+      const extra = $("dlg-extra").value.trim();
+      const args = ["--workers", String(workers), "--webui"];
+      if (extra) {
+        for (const tok of extra.split(/\s+/)) if (tok) args.push(tok);
+      }
+      try {
+        const r = await postJSON("/control/run", {script, args});
+        toast(`started ${r.name} (pid ${r.pid})`, "ok");
+        closeDialog();
+        refreshControlList();
+      } catch (e) {
+        toast(e.message, "bad");
+      }
+    };
+  </script>
+</body>
+</html>
