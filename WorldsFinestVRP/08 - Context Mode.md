@@ -1,60 +1,88 @@
 ---
 title: Context Mode
 project: SVRPTW
-tags: [context-mode, hooks, claude-code, process]
-updated: 2026-05-14
+tags: [context-mode, hooks, claude-code, process, mcp]
+updated: 2026-05-25
 ---
 
 # Context Mode
 
-A convention this repo uses to keep Claude from blowing its context window on raw tool output. Two layers: a **prompt-level banner** that reminds Claude of the rules, and a **PreToolUse warning** that flags flood-prone Bash commands.
+The repo runs the **`context-mode`** Claude Code plugin ([mksglu/context-mode](https://github.com/mksglu/context-mode)) to keep raw tool output out of the conversation. The plugin sandboxes flood-prone work into a local SQLite/FTS5 store and only returns summaries to the agent. Project-level `.claude/hooks/context_guard.py` is kept as a complementary advisory nudge on Bash invocations.
 
-## The banner (UserPromptSubmit)
+## Install
 
-Every user prompt has this string injected as `additionalContext`:
+From a Claude Code session in `D:/SVRPTW/`:
 
-> context-mode is ACTIVE. For any command with >20 lines of output, file analysis, or multi-step research use `ctx_batch_execute`/`ctx_search`/`ctx_execute` instead of Bash/Read. If `graphify-out/GRAPH_REPORT.md` exists, read it before answering architecture questions. Raw tool output floods context — keep large data in sandbox, return summaries only.
+```text
+/plugin marketplace add mksglu/context-mode
+/plugin install context-mode@context-mode
+```
 
-The injection is wired in `.claude/settings.json` under `hooks.UserPromptSubmit`:
+Restart the session (or `/reload-plugins`), then verify:
+
+```text
+/context-mode:ctx-doctor
+```
+
+All checks should be `[x]` — runtimes, hooks, FTS5, MCP registration.
+
+Prerequisite: Claude Code v1.0.33+ (`claude --version`).
+
+## What the plugin gives you
+
+Auto-registers `SessionStart`, `PreToolUse`, `PostToolUse`, and `PreCompact` hooks plus **11 MCP tools**:
+
+| Tool | Purpose |
+|---|---|
+| `ctx_execute` | Run code in a sandbox subprocess (Python, JS, etc.). Only stdout summary lands in context. |
+| `ctx_execute_file` | Same, with a file as input. |
+| `ctx_batch_execute` | Run several commands at once, query the combined output. |
+| `ctx_index` | Index files/output into the local FTS5 knowledge base. |
+| `ctx_search` | BM25 search over indexed content. |
+| `ctx_fetch_and_index` | Fetch a URL and index it. |
+| `ctx_stats` | Show savings + DB stats. |
+| `ctx_doctor` | Verify install. |
+| `ctx_upgrade` | Update the plugin. |
+| `ctx_purge` | Clear local cache/index. |
+| `ctx_insight` | Open the analytics dashboard (`/ctx-insight`). |
+
+Data lives on disk only — no telemetry, no cloud calls. See [context-mode.com](https://context-mode.com/) for the marketing pitch and screenshots.
+
+## What's still local to this repo
+
+`.claude/hooks/context_guard.py` still fires on every Bash invocation as an advisory nudge:
+
+| Triggers a warning | Suggested replacement |
+|---|---|
+| `cat <file>` | `Read` (paginated, line-numbered) |
+| `head` / `tail` | `Read` with `offset` + `limit` |
+| `grep` | the `Grep` tool (ripgrep-backed) |
+| `find /` | `Glob` |
+| `ls -R`, `ls -la /d` | `Glob` or `mcp__Desktop_Commander__list_directory` |
+| `pip list`, `conda list` | cap with `\| head -20` |
+
+Advisory only — `exit 0` always. Safe prefixes (`git`, `python`, `mkdir`, `rm`, `mv`, `cp`, `wc -l`) bypass.
+
+The old `UserPromptSubmit` banner that injected a "context-mode is ACTIVE" reminder every prompt is **removed** as of 2026-05-25 — the plugin's SessionStart hook does the equivalent (and now the tools it references actually exist).
+
+## Disabling context mode
+
+- For one turn: just tell Claude "use Read directly for this file, full output."
+- For a session: `/plugin disable context-mode@context-mode`, then `/reload-plugins`.
+- Permanently: `/plugin uninstall context-mode@context-mode`.
+
+## Status line (optional)
+
+To show live context-savings % in the status bar, add to `~/.claude/settings.json`:
 
 ```json
 {
-  "type": "command",
-  "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"context-mode is ACTIVE…\"}}'"
+  "statusLine": {
+    "type": "command",
+    "command": "context-mode statusline"
+  }
 }
 ```
-
-This fires **by default on every prompt** — no opt-in needed. The banner travels with the repo via `.claude/settings.json` (project-level), so anyone cloning the repo gets the same behavior.
-
-## The flood guard (PreToolUse → Bash)
-
-`.claude/hooks/context_guard.py` watches every Bash invocation and prints a stderr warning when the command matches a flood pattern:
-
-| Triggers a warning | Reason |
-|---|---|
-| `cat <file>` | Use `Read` (paginated, line-numbered) |
-| `head` / `tail` | Use `Read` with `offset` + `limit` |
-| `grep` | Use the `Grep` tool (ripgrep-backed, better output modes) |
-| `find /` | Use `Glob` |
-| `ls -R`, `ls -la /d` | Use `Glob` or `mcp__Desktop_Commander__list_directory` |
-| `pip list`, `conda list` | Cap with `\| head -20` |
-
-The hook is **advisory only** — `exit 0` always. It nudges, never blocks. Safe prefixes (`git`, `python`, `mkdir`, `rm`, `mv`, `cp`, `wc -l`) bypass the check entirely.
-
-## When you want context mode OFF
-
-If you're running a one-off investigation where you actually do want raw output (e.g., reading a long log in full), you can:
-
-1. Acknowledge the banner in your prompt: "Ignore context-mode for this turn, I want the full file."
-2. Or temporarily comment out the `UserPromptSubmit` block in `.claude/settings.json` for the session, then revert.
-
-Claude treats the banner as a strong default, not an unbreakable rule — explicit instructions override it.
-
-## When context mode bites you
-
-Symptom: Claude refuses to use plain `Read`/`Bash` and keeps reaching for `ctx_*` tools that aren't available. Cause: the banner is on but the `ctx_*` MCP server isn't actually connected.
-
-Fix: either install the ctx server (out of scope here) or remove the `UserPromptSubmit` block. The banner *references* `ctx_*` tools but doesn't enforce them — Claude will still fall back to `Read`/`Grep`/`Glob` if `ctx_*` is unavailable.
 
 ## See also
 

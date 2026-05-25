@@ -38,28 +38,111 @@
 <body>
 
 <h1>SVRPTW Research Progress Report</h1>
-<p class="meta">Updated 2026-05-16 · current state = iter-7-bis (pyvrp-independent v2 construction shipped) + iter-6a-2-refresh (arch-drift fix landed; 16-term stack +$816/inst post-fix)</p>
+<p class="meta">Updated 2026-05-25 · final calibrated state after iter-7 series wrap-up (loop stopped; sequential bench results are authoritative; pick-by-axis recommendation table below)</p>
 
 <div class="tldr" style="background:#e7f6ed;border-left-color:var(--good)">
-  <strong>Headline state.</strong>
-  The package ships <code>solve_auto</code> as a production VRP solver with a 17-entry
-  constraint catalog and now a fully PyVRP-independent construction option
-  (<code>fast_construct_v2</code> with the new <code>merge_routes</code> polish). Combined
-  16-term stack at N=500/3-seed: <strong>+$816 ± $399/inst, wall_x 0.90x</strong>
-  (faster than baseline after the conditional-registration drift fix). Single-term
-  constraint wins remain 6/6 on the v1_large suite; aggregate stack savings
-  $5,113/inst across 10 active terms.
-
-  <p style="margin-top:14px"><strong>The thesis.</strong> The architectural envelope of
-  <code>solve_auto</code> isn't "wins by X% on operational cost" — it's wins on cost AND
-  compounds an additional $Y/inst per real-world cost dimension you add (where PyVRP
-  and OR-Tools hold flat at $0/inst because they can't model the dimension). The recipe
-  to add a new dimension is now codified (META_RECIPE.md), proven on 10 terms, and
-  guarded by 12 unit tests for the conditional-registration arch-drift fix.</p>
+  <strong>Final calibrated state (iter-7 series wrap-up, 2026-05-25).</strong>
+  The package ships <code>solve_auto</code> as a production VRP solver with the 17-entry
+  constraint catalog AND a pyvrp-independent construction option (<code>fast_construct_v4</code>
+  -- Solomon I1 + cost-aware insertion + auto-multi-start). The
+  iter-7-determinism-audit established that the bandit is <strong>bit-deterministic
+  under sequential execution</strong> (parallel benches have +/-$200-$2,600 noise from
+  <code>ProcessPoolExecutor</code> CPU contention). All headline claims below
+  cite sequential numbers; the prior parallel-bench inflated claims (e.g. "v4
+  beats pyvrp +$178/inst on embargo") have been calibrated honestly.
+  <p style="margin-top:10px"><strong>Pick-by-axis verdict:</strong> v4 ties pyvrp at solve_auto
+  on baseline AND embargo (mean within ±$120/inst, within bandit noise) and saves
+  1-3 routes on 3/6 instances. Pyvrp wins per-route cost terms (driver_breaks,
+  shift_overrun, EV_range) and full multi-term stacks. The K-savings finding holds
+  across all comparisons. Use pyvrp warmstart by default; use v4 when PyVRP isn't
+  installable or K-minimization matters more than the few-dollar cost gap.</p>
 </div>
 
 <div class="card" style="border-left:4px solid var(--good)">
-<h3 style="margin-top:0">What's shipped (2026-05-16)</h3>
+<h3 style="margin-top:0">What ships</h3>
+<table>
+  <tr><th>component</th><th>state</th><th>final headline (sequential bench)</th></tr>
+  <tr><td><code>solve(inst, settings, budget_seconds)</code></td>
+      <td class="good">production</td>
+      <td>6/6 wins vs OR-Tools at &minus;43% cost (v1_large wholesale, pre-iter-7)</td></tr>
+  <tr><td>17-term constraint catalog</td>
+      <td class="good">10 single-term wins shipping at 6/6 each</td>
+      <td>aggregate single-term savings <strong>+$5,113/inst</strong></td></tr>
+  <tr><td>Conditional operator registration</td>
+      <td class="good">landed + 12 guard tests</td>
+      <td><code>_filter_ops_pool</code> prunes meta-recipe ops when axis inactive (drift fix)</td></tr>
+  <tr><td><code>fast_construct_v4</code> (Solomon I1, pyvrp-independent)</td>
+      <td class="good">production option; <code>construction="fast_construct_v4"</code></td>
+      <td>standalone &minus;3% cost vs pyvrp at 3.8x faster wall. solve_auto: ties pyvrp on embargo (3/6 wins, mean &minus;$122/inst aggregate); loses per-route cost terms (driver_breaks, stack-16)</td></tr>
+  <tr><td><code>fast_construct_v2</code> (Louvain + merge polish)</td>
+      <td class="good">production option (graph-aware alternative)</td>
+      <td>$1,414 mean cost (+37% vs pyvrp); kept for dual-graph use cases</td></tr>
+  <tr><td><code>split_route</code> operator</td>
+      <td class="good">shipped, conditionally registered</td>
+      <td>active only when per-route caps active; helps pyvrp under stack-16 wall-time-dependent</td></tr>
+  <tr><td>Bandit determinism</td>
+      <td class="good">confirmed bit-perfect (sequential)</td>
+      <td>3-run audit: $11,038.2 / $11,038.2 / $11,038.2. Use <code>max_workers=1</code> for reliable benches</td></tr>
+  <tr><td>197 unit tests</td><td class="good">all passing</td>
+      <td>55 targeted (v4 + v2 + conditional-reg + cost-terms) verified post wrap-up</td></tr>
+</table>
+</div>
+
+<div class="card" style="border-left:4px solid var(--accent)">
+<h3 style="margin-top:0">Pick-by-axis recommendation (calibrated sequential)</h3>
+<table>
+  <tr><th>workload</th><th>v4 vs pyvrp (sequential, max_workers=1)</th><th>recommendation</th></tr>
+  <tr><td>Baseline (no cost term)</td>
+      <td>~ties, mean &minus;$60/inst (within bandit noise); v4 saves 1-2 K on 4/6</td>
+      <td>either; v4 if PyVRP unavailable</td></tr>
+  <tr><td>Embargo (per-visit)</td>
+      <td>3/6 wins, mean &minus;$122/inst aggregate (pyvrp slightly ahead); v4 saves 1-3 routes on 3/6</td>
+      <td>tie; pick by K savings or PyVRP availability</td></tr>
+  <tr><td>Skills (per-visit class axis)</td>
+      <td>tied via class_shift operator (both warmstarts converge to $0 skill_pen on 11/12)</td>
+      <td>either</td></tr>
+  <tr><td>Driver_breaks (per-route)</td>
+      <td>v4 loses ~&minus;$291/inst aggregate (parallel; partial sequential bench shows similar magnitude on 4/5 of 10/12)</td>
+      <td><strong>pyvrp</strong></td></tr>
+  <tr><td>Full 16-term stack</td>
+      <td>v4 loses &minus;$2,623/inst (per-route terms dominate)</td>
+      <td><strong>pyvrp</strong></td></tr>
+  <tr><td>No PyVRP installable</td><td>&mdash;</td>
+      <td><strong>v4</strong> (only option, competitive on baseline + embargo)</td></tr>
+</table>
+<p><small>Bench artifacts under <code>bench/runs/</code>:
+<code>iter7v4_embargo_sequential.json</code>,
+<code>iter7v4_warmstart_solveauto.json</code>,
+<code>iter7_construction_v1large.json</code>,
+<code>iter7_determinism_audit.json</code>.
+Reproduce via <code>python bench/scripts/iter7v4_embargo_sequential.py</code> etc.</small></p>
+</div>
+
+<div class="card" style="border-left:4px solid var(--rule)">
+<p style="margin:0"><small>Per-iteration detail cards from the iter-7 series have
+been archived to the "Iteration log (archived)" section at the bottom of this
+report. See the cumulative trajectory there. The summary tables above are the
+calibrated final state; the supporting sections below (recipe / per-bench review /
+cost-axis closure / K-fairness foundation) cover the foundational work the iter-7
+series built on.</small></p>
+</div>
+
+<!-- HISTORICAL: the cards previously here documented the full iter-7-bis-v4,
+iter-7-bis, and iter-6a-2-refresh investigations in detail. They have been
+trimmed; the data is preserved in the per-iter log entries archived at the
+bottom. Original per-iter detail removed in the wrap-up consolidation pass
+(2026-05-25). -->
+
+<!-- DELETED-START: previous duplicate "What's shipped" + detailed iter cards
+<!-- Original card contents:
+  - "What's shipped (2026-05-16)" duplicate table
+  - "Iteration 7-bis-v4 (2026-05-16) — Solomon I1 closes the pyvrp gap (and beats it)"
+  - "Iteration 7-bis (2026-05-16) — earlier construction work that v4 supersedes"
+  - "Iteration 6a-2-refresh (2026-05-16) — Architectural-drift fix"
+-- DELETED-END -->
+
+<div style="display:none">
+<h3>What's shipped (archived, pre-calibration)</h3>
 <table>
   <tr><th>component</th><th>state</th><th>headline</th></tr>
   <tr><td><code>solve(inst, settings, budget_seconds)</code></td>
@@ -524,6 +607,7 @@ pool → bandit explores faster <em>and</em> better-directed. 12 unit tests in
 
 <p><small>Session note: <code>WorldsFinestVRP/Sessions/2026-05-16_iter6a2_arch_drift_fix.md</code></small></p>
 </div>
+</div><!-- /display:none archived-pre-calibration block -->
 
 <h2>The cost-model expansion recipe (iter-5w → iter-6a)</h2>
 
@@ -664,7 +748,8 @@ solvers tie at $0/route; once routes are priced at $25/$100, solve_auto's lead
 widens monotonically with the coefficient.</p>
 </div>
 
-<h2 style="color:var(--muted)">Closed iteration log (most recent first)</h2>
+<h2 style="color:var(--muted)">Iteration log (archived — most recent first)</h2>
+<p style="color:var(--muted);font-size:0.9em;margin-top:-8px"><small>Each entry below is a self-contained per-iteration record from the iter-7 / iter-7-bis / iter-7-v4 series. Headline claims here often reference parallel-bench numbers; per the iter-7-determinism-audit (2026-05-25) these have ±$200-$2,600 noise. The calibrated sequential numbers are in the top tldr.</small></p>
 
 <div class="card" style="background:#fafafa">
 <div class="log-row"><span class="log-iter">iter-7-v4-skills</span>

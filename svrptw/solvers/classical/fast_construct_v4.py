@@ -1,47 +1,48 @@
-"""fast_construct_v4 -- Solomon I1 sequential insertion (Solomon 1987).
+"""fast_construct_v4 -- Solomon I1 sequential insertion with cost-aware
+extensions and auto-multi-start (final form, iter-7 series).
 
-Goal: close the +37% cost gap that ``fast_construct_v2`` (Louvain + merge_routes
-polish) leaves vs pyvrp. v2 is fast and pyvrp-independent but uses NN + merge,
-which produces good-but-not-great routes. I1 is the classical TW-aware
-insertion heuristic that's much closer to pyvrp's HGS-construction quality.
+Final form. Solomon 1987 I1 insertion (farthest-from-depot seed by default,
+alpha1=1, alpha2=0, lambda=1, mu=1) with three production extensions that
+landed across the iter-7 / iter-7-bis / iter-7-v4 series:
 
-Algorithm (Solomon 1987, "Algorithms for the VRP with Time Window
-Constraints", Operations Research 35(2)):
+  1. ``cost_aware=True`` (default): when ``settings.economics`` has embargo
+     OR driver_breaks active, insertion score c1 includes the per-customer
+     embargo penalty (push-forward-aware: counts all customers shifted
+     into windows by the insertion) plus the per-route driver_breaks delta
+     (delta_driving = c11 when mu=1; piecewise-linear over-cap penalty).
+     No-op when no cost term active.
 
-  1. Pick a seed customer (default: farthest from depot, breaking ties by
-     earliest due time). Start a new route with just this customer.
-  2. Repeat while unrouted customers remain that fit ANYWHERE in the
-     current route:
-       a. For each unrouted u, find the best insertion position (i,j)
-          in the current route that's TW + capacity feasible.
-          Score c1(i,u,j) = alpha1*c11 + alpha2*c12, where
-            c11 = d(i,u) + d(u,j) - mu*d(i,j)         (distance increase)
-            c12 = b_j_new - b_j                       (push-forward in arrival at j)
-       b. Among all u with a feasible position, pick the one that
-          maximizes  c2(u) = lambda*d(0,u) - c1(i,u,j)
-          (encourages picking customers far from the depot first).
-       c. Insert u at its best position.
-  3. When no unrouted u fits the current route, start a new route with
-     the next-best seed.
-  4. Optional one-pass two_opt_intra polish per route.
+  2. ``n_starts=None`` (default, auto-selects): 3 starts when a cost term
+     creates seed-strategy spread (embargo or driver_breaks active), else
+     1 start. Strategies are farthest-from-depot, earliest-due, highest-
+     demand. First pass gets up to the full remaining budget (guaranteed-
+     completion semantics); subsequent passes share whatever time is left.
 
-Standard parameter set: mu=1, alpha1=1, alpha2=0, lambda=1 (cheapest-
-insertion + farthest-first seed). These match Solomon's published "I1"
-configuration.
+  3. ``nearest_k=24`` (default): per-step candidate set limited to the k
+     unrouted customers nearest to either endpoint of the current route,
+     keeping per-step cost O(K'*L) instead of O(N*L) at large N.
 
-Scale optimization: at large N, instead of scoring ALL unrouted customers
-each iteration, score only the ``nearest_k`` customers nearest to either
-endpoint of the current route. Brings per-iter cost from O(N*L) to
-O(K'*L) with K' << N at the cost of slightly worse routing decisions.
+Calibrated bench truth (sequential, max_workers=1, contention-free; the
+parallel benches had +/-$200-$2,600/inst noise from CPU contention --
+see iter-7-determinism-audit):
 
-Constraint composition: the I1 inner loop only checks TW + capacity (the
-hard feasibility constraints). The full cost model (embargo, skills, etc.)
-is the bandit's job after construction. This keeps construction fast and
-deterministic; the cost-term constraints fold in naturally via the bandit
-refinement that follows.
+  * Baseline (no cost term): v4 ~ ties pyvrp on cost; uses 1-2 fewer K
+    on 4/6 v1_large instances. Standalone v4 also beats pyvrp by -3% cost
+    at 3.8x faster wall.
+  * Embargo (per-visit cost term): v4 ties pyvrp at solve_auto level (3/6
+    paired wins, mean -$122/inst aggregate); v4 saves 1-3 routes on 3/6.
+  * Driver_breaks (per-route cost term): v4 loses to pyvrp; v4's tighter
+    K compounds per-route penalty. Construction-side cost-aware addition
+    didn't close the gap (per-route caps are global to route topology,
+    not local to single insertions).
+  * Stack-16 (mixed per-visit + per-route): pyvrp wins because per-route
+    terms dominate the cost mix.
 
-Public API mirrors v1/v2/v3:
-    solve(inst, settings, budget_seconds=2.0, seed=0) -> Solution
+Public API: solve(inst, settings, budget_seconds=2.0, seed=0,
+                  *, nearest_k=24, polish=True, cost_aware=True,
+                  n_starts=None) -> Solution
+Plumbed into svrptw.solvers.classical.portfolio_pyvrp_warm.solve_auto via
+``construction="fast_construct_v4"``.
 """
 from __future__ import annotations
 
@@ -55,9 +56,6 @@ from svrptw.solvers.common import Route, Solution, evaluate
 from svrptw.solvers.common.local_search import (
     _route_arrival_and_close,
     two_opt_intra,
-    two_opt_star,
-    swap_star,
-    relocate,
 )
 
 
@@ -379,10 +377,12 @@ def _construct_one_pass(
 def solve(inst: Instance, settings: Settings,
           budget_seconds: float = 2.0, seed: int = 0,
           *, nearest_k: int = 24, polish: bool = True,
-          deep_polish: bool = False,
           cost_aware: bool = True,
           n_starts: int | None = None) -> Solution:
-    """Solomon I1 sequential insertion construction.
+    """Solomon I1 sequential insertion construction (final form).
+
+    See module docstring for the calibrated bench truth and the design
+    rationale for each knob.
 
     Budget is best-effort. `seed` unused except for API parity (I1 is
     deterministic given the same instance + params).
@@ -392,15 +392,7 @@ def solve(inst: Instance, settings: Settings,
     candidates. Default 24 keeps the scoring loop O(K' * L) instead of
     O(N * L). Set to 0 (or >= N) for full enumeration.
 
-    `polish`: enable end-of-construction polish. Default True.
-
-    `deep_polish`: after the per-route two_opt_intra pass, also run a
-    cross-route polish chain (two_opt_star -> relocate -> swap_star) to
-    deepen the construction basin. This matches what HGS does internally
-    inside PyVRP construction. Without it, v4 standalone beats pyvrp on
-    cost but v4-warmstarted solve_auto loses to pyvrp-warmstarted
-    solve_auto (the bandit can't dig as deep from v4's shallower basin).
-    Default True. Adds ~30-50% to construction wall.
+    `polish`: enable end-of-construction per-route two_opt_intra polish.
 
     `cost_aware`: when True AND ``settings.economics`` has embargo
     constraints active, add the per-customer embargo penalty to the I1
@@ -554,42 +546,9 @@ def solve(inst: Instance, settings: Settings,
                 polished.append(r)
         routes = polished
 
-    # Build intermediate Solution for cross-route polish (deep_polish).
+    # Final Solution build (post per-route polish; cost-aware insertion
+    # has already shaped the routes via c1 during construction).
     sol_routes = [Route(customers=list(r)) for r in routes if r]
-    while len(sol_routes) < inst.num_vehicles:
-        sol_routes.append(Route(customers=[]))
-    sol_intermediate = Solution(
-        instance_id=inst.instance_id, routes=sol_routes,
-        solver="fast_construct_v4",
-        wall_clock_seconds=time.perf_counter() - t0,
-        budget_seconds=float(budget_seconds),
-        feasible=False,
-    )
-    sol_intermediate.metrics = evaluate(inst, sol_intermediate, settings)
-    sol_intermediate.feasible = bool(sol_intermediate.metrics["feasible"])
-
-    # deep_polish: cross-route LS chain to match HGS-construction depth.
-    # Bandit operators that come downstream do better from the deeper basin.
-    if deep_polish and time.perf_counter() < deadline:
-        remaining = deadline - time.perf_counter()
-        # Split: 40% two_opt_star, 30% relocate, 30% swap_star.
-        for op_fn, frac in (
-            (two_opt_star, 0.40),
-            (relocate, 0.30),
-            (swap_star, 0.30),
-        ):
-            if time.perf_counter() >= deadline:
-                break
-            slot = max(0.05, remaining * frac)
-            try:
-                sol_intermediate = op_fn(
-                    inst, sol_intermediate, settings, max_seconds=slot,
-                )
-            except Exception:
-                pass
-    sol = sol_intermediate
-    # Final routes list is now whatever the deep polish produced.
-    sol_routes = sol.routes
     while len(sol_routes) < inst.num_vehicles:
         sol_routes.append(Route(customers=[]))
     sol = Solution(
@@ -618,22 +577,16 @@ if __name__ == "__main__":
     p.add_argument("--budget", type=float, default=8.0)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--no-polish", action="store_true")
-    p.add_argument("--deep-polish", action="store_true",
-                   help="Enable cross-route LS polish (two_opt_star + "
-                        "relocate + swap_star). Standalone gives marginal "
-                        "improvement at higher wall; may break the bandit "
-                        "downstream when used as warmstart through "
-                        "solve_auto (under investigation).")
     p.add_argument("--nearest-k", type=int, default=24)
     p.add_argument("--n-starts", type=int, default=1,
                    help="Multi-start: number of seed strategies to try "
                         "(1=farthest only, 2=+earliest_due, 3=+highest_demand). "
-                        "Best by full-objective cost wins.")
+                        "Best by full-objective cost wins. solve() default "
+                        "auto-selects 3 with cost terms, 1 baseline.")
     args = p.parse_args()
     inst = load_instance(args.instance)
     sol = solve(inst, Settings(), budget_seconds=args.budget,
                 seed=args.seed, polish=not args.no_polish,
-                deep_polish=args.deep_polish,
                 nearest_k=args.nearest_k,
                 n_starts=args.n_starts)
     print(f"K={int(sol.metrics['num_vehicles_used'])} "

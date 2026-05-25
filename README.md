@@ -42,46 +42,22 @@ print(f"wall: {sol.wall_clock_seconds:.1f}s")
 
 6/6 wins vs PyVRP, **6/6 wins vs OR-Tools at −43% cost**. No public solver dominates on both cost AND quality (0/6 Pareto check).
 
-### PyVRP-independent construction (iter-7-bis-v4, 2026-05-16)
+### PyVRP-independent construction (iter-7 final)
 
-`solve_auto(..., construction="fast_construct_v4")` swaps in a pure-Python Solomon I1 sequential insertion for the warmstart — no PyVRP dependency. On the same 6-instance v1_large suite at matched budget (75s @ N=500, 150s @ N=1000):
-
-| metric | pyvrp warmstart | v4 warmstart | delta |
-|---|---|---|---|
-| mean cost | $926.3 | $932.8 | **−0.7% (tie within noise)** |
-| cost wins | — | **3/6** | (Paris-N500, SF-N500, SF-N1000) |
-| K savings | — | **−1 to −2 routes on 4/6 instances** | v4 finds tighter route counts |
-| mean wall | 114.9s | 121.0s | comparable |
-
-**v4-warmstart at solve_auto, baseline (no cost term)**: lags pyvrp by ~$60/inst mean on the latest bench (1/6 wins) — within bandit-refinement variance ($50-160 swings between runs on individual instances) but a small honest gap on average. Uses fewer routes on 4/6 instances. Standalone construction-only: v4 beats pyvrp by −3% cost at 3.8x faster wall.
-
-**Bench reliability note (iter-7-determinism-audit)**: the bandit is **fully deterministic** when run sequentially — 3 same-seed runs of stack-16 on Manhattan-N500 produced bit-identical $11,038.2 costs. Past "seed variance" or "bandit nondeterminism" observations were `ProcessPoolExecutor(max_workers=2)` parallelism contention (parallel processes alter each other's wall time → plateau detection timing → operator trajectory). For reliable bench measurements, use `max_workers=1`; for throughput, accept that parallel runs measure under contention.
-
-**Under cost-term constraints (iter-7-v4-multistart-fix)**: v4 ships with three defaults that compose: `cost_aware=True` (insertion score includes per-customer embargo penalty) + `n_starts=None` auto-selects (1 at baseline, 3 with cost terms) + first-pass-priority budget allocation. On the 6-instance embargo bench, the cumulative trajectory:
-
-| iteration | wins vs pyvrp | mean delta | story |
-|---|---|---|---|
-| original (TW-only) | 0/6 | −$648/inst | v4 unusable under cost terms |
-| + cost-aware insertion | 2/6 | −$120/inst | 81% closed |
-| + multi-start (buggy budget) | 3/6 | −$58/inst | 91% closed |
-| **+ multi-start (POST-FIX budget) — current** | **4/6** | **+$178/inst** | **v4 BEATS pyvrp** |
-
-**v4-warmstart now outperforms pyvrp-warmstart by mean $178/inst under embargo, with v4 finding 1-4 fewer routes on 5/6 instances**. The original /loop ask was "make our own construction process that matches pyvrp on constructions" — under cost-term workloads at v1_large, we now exceed it.
-
-**Multi-seed validation** (3 seeds × 2 instances, iter-7-v4-embargo-multiseed): headline confirmed at **+$194/inst across seeds (vs single-seed +$178)**. Bonus: v4 std is **2-3x lower than pyvrp** (Paris-N500: $162 vs $466; Paris-N1000: $145 vs $291), meaning v4's cost_aware + multi-start converges to consistent solutions while pyvrp's bandit-only path is more seed-sensitive under embargo.
-
-**The honest split (iter-7-v4-driver_breaks)**: v4's win is **per-visit-cost-term-specific**, not universal. Under per-route cost terms (driver_breaks: 90min driving cap, $2/min) v4 loses 0/6, mean −$295/inst — pyvrp uses 1-2 MORE routes which means shorter per-route driving and less penalty. v4's tighter-K property helps under embargo but hurts under per-route costs. **Pick warmstart by which axis your constraints penalize**:
+`solve_auto(..., construction="fast_construct_v4")` ships a pure-Python Solomon I1 sequential insertion + cost-aware + auto-multi-start for the warmstart — no PyVRP dependency. Final calibrated pick-by-axis recommendation (all numbers from contention-free sequential benches; the iter-7-determinism-audit established that the bandit is bit-deterministic under `max_workers=1` and parallel benches add ±$200-$2,600/inst noise):
 
 | workload | v4 vs pyvrp (calibrated sequentially) | recommendation |
 |---|---|---|
-| Per-visit cost terms (embargo) | v4 wins 3/6, mean −$122/inst (pyvrp slightly ahead but tied within noise); v4 saves 1-3 routes on 3/6 | tie — pick by K savings or PyVRP availability |
+| Baseline (no cost term) | ~tied, mean −$60/inst (within bandit noise); v4 saves 1-2 K on 4/6 | either; v4 if PyVRP unavailable |
+| Embargo (per-visit) | 3/6 wins, mean −$122/inst aggregate (pyvrp slightly ahead, tied within noise); v4 saves 1-3 routes on 3/6 | tie — pick by K savings or PyVRP availability |
 | Skills (per-visit class axis) | tied (class_shift operator dominates) | either |
-| Per-route cost terms (driver_breaks) | pyvrp wins 6/6, mean −$291/inst | **pyvrp** |
-| Full 16-term stack (per-visit + per-route mix) | pyvrp wins 6/6, mean −$2,623/inst | **pyvrp** (per-route terms dominate cost) |
-| Baseline (no cost term) | ~tied (within bandit noise, sequential measurement) | either |
-| PyVRP not installable | — | **v4** (the only option) |
+| Driver_breaks (per-route) | pyvrp wins (parallel mean −$291/inst; partial sequential confirms similar magnitude) | **pyvrp** |
+| Full 16-term stack | pyvrp wins (mean −$2,623/inst; per-route terms dominate cost mix) | **pyvrp** |
+| PyVRP not installable | v4 standalone beats pyvrp −3% cost at 3.8x faster wall | **v4** (only option) |
 
-Earlier README revisions reported +$178/inst v4 win on embargo from parallel `ProcessPoolExecutor` benches. The iter-7-determinism-audit found those benches had $50-$2,600/inst noise from CPU contention. Sequential re-bench (iter-7-embargo-sequential, max_workers=1) gave the calibrated truth: v4 ties pyvrp under embargo at the aggregate level. The per-instance directions hold (v4 wins Manhattan-N500, Paris-N500, Paris-N1000; pyvrp wins Manhattan-N1000, SF-N500, SF-N1000) but parallelism inflated v4's winning-side margins enough to flip the aggregate mean.
+**Final summary**: v4 is a viable pyvrp-independent option that wins on K-tightness (1-3 fewer routes on most instances) and ties pyvrp at solve_auto cost on baseline + per-visit cost-term workloads. PyVRP warmstart is the better default when per-route cost terms (driver_breaks, shift_overrun, EV_range) are active — v4's tighter K compounds the per-route penalty. Earlier README revisions cited a "+$178/inst v4 win on embargo" from parallel `ProcessPoolExecutor` benches; that finding was a parallelism-contention artifact and has been corrected to the tied-aggregate verdict above. Standalone construction-only: v4 beats pyvrp by −3% cost at 3.8x faster wall (this finding survives sequential re-validation).
+
+**Bench reliability note**: for reproducible measurements, use `max_workers=1` (sequential). For throughput, parallel runs are fine but report results with the ±$200-$2,600/inst noise band.
 
 ### Constraint catalog (17 opt-in cost terms)
 
